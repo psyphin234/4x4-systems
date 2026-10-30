@@ -24,6 +24,11 @@
     if (saved && saved.surfaces) state = Object.assign(state, saved);
   } catch (e) { /* private mode or bad JSON: use the defaults */ }
 
+  // Older saved states may hold any slope or ratio: snap them to what the page offers.
+  const nearestSlope = (deg) => D.slopes.reduce((b, s) => (Math.abs(s.deg - deg) < Math.abs(b.deg - deg) ? s : b)).deg;
+  state.slope = nearestSlope(+state.slope || 0);
+  state.lowRatio = Math.min(D.lowRange.max, Math.max(D.lowRange.min, +state.lowRatio || D.lowRange.default));
+
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
   }
@@ -62,7 +67,16 @@
       $("lsd-seg").appendChild(b);
     });
 
-    $("slope").addEventListener("input", (e) => set({ slope: +e.target.value }));
+    D.slopes.forEach((sl) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.deg = sl.deg;
+      b.innerHTML = "<span></span><small></small>";
+      b.firstChild.textContent = sl.name;
+      b.lastChild.textContent = sl.deg + "°";
+      b.addEventListener("click", () => set({ slope: sl.deg }));
+      $("slope-seg").appendChild(b);
+    });
 
     // camera views
     document.querySelectorAll("#views button").forEach((b) => {
@@ -258,8 +272,7 @@
     document.querySelectorAll("#sys-chips .pick").forEach((b) => radio(b, b.dataset.id === state.system));
     $("sys-blurb").textContent = sys.blurb;
     document.querySelectorAll("#lsd-seg button").forEach((b) => radio(b, (b.dataset.id === "lsd") === !!state.rearLsd));
-    $("slope").value = state.slope;
-    $("slope-out").textContent = state.slope + "°";
+    document.querySelectorAll("#slope-seg button").forEach((b) => radio(b, +b.dataset.deg === state.slope));
 
     renderStatus(r);
 

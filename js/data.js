@@ -25,7 +25,15 @@ window.SYS_DATA = {
 
   // Low range ratio: the visitor's input. Check the figure in your own
   // vehicle's handbook; the default is only a starting point for the slider.
-  lowRange: { min: 1.5, max: 4.0, step: 0.1, default: 2.5 },
+  lowRange: { min: 2.7, max: 4.0, step: 0.1, default: 2.7 },
+
+  // The ground's slope: three choices, not a slider (owner, 2026-10-30).
+  // 8 degrees is enough that muddy ground needs 4WD; 25 that tar needs low range.
+  slopes: [
+    { id: "level", name: "Level", deg: 0 },
+    { id: "slope", name: "Slope", deg: 8 },
+    { id: "steep", name: "Steep slope", deg: 25 }
+  ],
 
   // Limited-slip rear diff: torque bias ratio (the strong side can take this
   // many times what the weak side holds). Illustrative; real LSDs differ widely.
@@ -99,7 +107,7 @@ window.SYS_DATA = {
 
   defaults: {
     system: "part", mode: "2H", cdl: false, rearLock: false, frontLock: false,
-    rearLsd: false, trc: false, scenario: "mud", lowRatio: 2.5
+    rearLsd: false, trc: false, scenario: "mud", lowRatio: 2.7
   },
 
   // What the page can't tell you (shown in "What this page can't tell you").

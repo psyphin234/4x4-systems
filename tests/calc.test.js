@@ -163,6 +163,19 @@
     eq(C.solve(st("tar", { system: "torsen", mode: "4H" })).warnings.length, 0, "Torsen");
   });
 
+  test("the three slope choices give the lessons they're there for", () => {
+    const deg = (id) => D.slopes.find((x) => x.id === id).deg;
+    const mud = { fl: "mud", fr: "mud", rl: "mud", rr: "mud" }, tar = { fl: "tar", fr: "tar", rl: "tar", rr: "tar" };
+    const at = (surfaces, slope, over) => C.solve(Object.assign({}, D.defaults, { surfaces: surfaces, slope: slope }, over || {})).status;
+    eq(at(mud, deg("level")), "move", "level mud: 2H will do");
+    eq(at(mud, deg("slope")), "spin", "sloping mud: 2H spins");
+    eq(at(mud, deg("slope"), { mode: "4H" }), "move", "sloping mud: 4H drives");
+    eq(at(tar, deg("steep")) !== "move", true, "steep tar: 2H is stuck");
+    eq(at(tar, deg("steep"), { mode: "4H" }), "bog", "steep tar: 4H bogs");
+    eq(at(tar, deg("steep"), { mode: "4L" }), "move", "steep tar: 4L climbs");
+    eq(D.lowRange.default >= D.lowRange.min && D.defaults.lowRatio >= D.lowRange.min, true, "default ratio in range");
+  });
+
   test("suggest finds the fewest presses", () => {
     const one = C.suggest(st("mud"));
     eq(one.every((o) => o.length === 1), true, "single presses for mud");

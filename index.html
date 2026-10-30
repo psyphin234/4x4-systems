@@ -59,11 +59,8 @@
           <p class="panel-title">Under each wheel</p>
           <p class="hint wheel-hint">Pick the ground under each wheel, here or by clicking it in the picture.</p>
           <div class="wheel-grid" id="wheel-grid"></div>
-          <p class="ctl-label" id="slope-label">Slope</p>
-          <div class="slider">
-            <input type="range" id="slope" min="0" max="35" step="1" aria-labelledby="slope-label">
-            <output id="slope-out" for="slope"></output>
-          </div>
+          <p class="ctl-label" id="slope-label">The ground is</p>
+          <div class="seg seg--slope" id="slope-seg" role="radiogroup" aria-labelledby="slope-label"></div>
         </div>
       </aside>
 

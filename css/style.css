@@ -3370,3 +3370,9 @@ select:focus {
 .ground--mud .ground-swatch { background: radial-gradient(circle at 30% 35%, #a08a70 0 2px, transparent 3px), radial-gradient(circle at 70% 65%, #8a7660 0 2.5px, transparent 3.5px), radial-gradient(circle at 65% 25%, #7a6550 0 1.5px, transparent 2.5px), #5a3f26; }
 .ground--air .ground-swatch { background: #03050c; border: 1px dashed rgba(76, 201, 255, 0.7); }
 .ground--ice .ground-swatch { background: linear-gradient(135deg, transparent 45%, rgba(255,255,255,0.9) 46% 52%, transparent 53%), linear-gradient(160deg, #d6ecf8, #9fc6e0); }
+
+/* the slope: three choices, the degrees under each name */
+.seg--slope { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+.seg--slope button { display: grid; justify-items: center; gap: 1px; white-space: normal; line-height: 1.2; padding: 5px 4px; min-width: 0; }
+.seg--slope small { opacity: 0.75; font-size: 0.72rem; }
+.bench > .side { min-width: 0; }
