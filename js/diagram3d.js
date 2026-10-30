@@ -1086,7 +1086,6 @@ window.SYS_DIAGRAM = (function () {
   // ---------------------------------------------------------------- camera
   const VIEWS = {
     all:   { target: [0.05, 0.35, -0.1],    pos: [-4.3, 3.7, 2.7] },
-    engine: { target: [0, MY + 0.12, 0.55], pos: [-1.85, 1.35, 0.3] },
     tcase: { target: [0.1, MY - 0.08, -0.42], pos: [-1.35, 0.72, 0.05] },
     front: { target: [FD.x, AY, FZ],        pos: [1.1, 0.74, 0.62] },   // from the right: the front ring gear is on the left
     rear:  { target: [RD.x, AY, RZ],        pos: [-0.9, 0.74, -0.78] }

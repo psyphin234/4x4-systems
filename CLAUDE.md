@@ -34,7 +34,7 @@ What's drawn: a bare rolling chassis, kept light (two see-through rails, a cross
 
 **Engine and gearbox** (owner, 2026-10-30: less block-shaped): an inline-four with a tapered see-through block and head, pistons and rods driven by the crank (`moveEngine()`, firing order 1-4 / 2-3 pairs), a rounded rocker cover with ribs, sump, intake plenum and runners on the left, exhaust manifold and down pipe on the right, pulleys and belt at the front; the gearbox is a lathe-turned bellhousing and case with ribs and a gear lever. The crank sits on the gearbox's axis (main shaft height).
 
-Camera: drag to orbit, scroll to zoom, buttons for Whole drivetrain / Engine & gearbox / Transfer case / Front diff / Rear diff (views look in from the side, under the frame; the frame, springs and shocks fade when zoomed in). `#view-tcase`, `#view-front`, `#view-rear` in the URL open zoomed in. Labels are HTML tags projected onto the parts; the small part labels show only when zoomed in.
+Camera: drag to orbit, scroll to zoom, buttons for Whole drivetrain / Transfer case / Front diff / Rear diff (an Engine & gearbox button was added and removed again, owner, 2026-10-30) (views look in from the side, under the frame; the frame, springs and shocks fade when zoomed in). `#view-tcase`, `#view-front`, `#view-rear` in the URL open zoomed in. Labels are HTML tags projected onto the parts; the small part labels show only when zoomed in.
 
 ## Figures are illustrative
 
