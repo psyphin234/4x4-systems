@@ -2894,7 +2894,7 @@ select:focus {
 
 .terrain-swatch i { display: block; }
 
-/* ------------------------------------------------------------ the centre: status, picture, meters */
+/* ------------------------------------------------------------ the centre: status and picture */
 .centre {
   min-width: 0;
   border: 1px solid var(--border);
@@ -3001,67 +3001,6 @@ select:focus {
 .key--idle { background: #7487ad; }
 .key--lock { background: transparent; border: 3px solid #ffc857; border-radius: 50%; box-shadow: 0 0 8px #ffc857; }
 .key--flow { width: 22px; height: 6px; background: #4cc9ff; box-shadow: 0 0 8px #4cc9ff; }
-
-.meters { padding: 12px 16px 14px; border-top: 1px solid var(--border); }
-
-.meter {
-  display: grid;
-  grid-template-columns: 210px minmax(0, 1fr) 48px;
-  align-items: center;
-  gap: 12px;
-  margin-top: 6px;
-  font-size: 0.85rem;
-}
-
-.meter-label { color: var(--text-muted); }
-
-.meter-track {
-  position: relative;
-  height: 12px;
-  border-radius: 6px;
-  background: rgba(120, 170, 255, 0.1);
-}
-
-.meter-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: 6px;
-  transition: width 0.4s ease;
-}
-
-.meter--need .meter-fill { background: rgba(234, 242, 255, 0.55); }
-.meter--ok .meter-fill { background: linear-gradient(90deg, #1fb985, var(--pass)); box-shadow: 0 0 10px rgba(46, 230, 166, 0.5); }
-.meter--short .meter-fill { background: linear-gradient(90deg, #c23a50, var(--fail)); box-shadow: 0 0 10px rgba(255, 93, 115, 0.5); }
-
-.meter-need {
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
-  width: 2px;
-  margin-left: -1px;
-  background: #ffffff;
-  box-shadow: 0 0 6px #ffffff;
-  transition: left 0.4s ease;
-}
-
-.meter-ghost {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 2px;
-  margin-left: -1px;
-  background: rgba(76, 201, 255, 0.7);
-  transition: left 0.4s ease;
-}
-
-.meter-value {
-  text-align: right;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.meters-hint { margin: 8px 0 0; font-size: 0.78rem; }
 
 /* ------------------------------------------------------------ the dash switches */
 .lever {
@@ -3263,8 +3202,6 @@ select:focus {
 
 @media (max-width: 700px) {
   .bench { grid-template-columns: 1fr; }
-  .meter { grid-template-columns: 1fr 44px; }
-  .meter-label { grid-column: 1 / -1; }
   .setup-grid { grid-template-columns: 1fr; }
 }
 

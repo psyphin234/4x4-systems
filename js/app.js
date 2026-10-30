@@ -1,5 +1,5 @@
 /* State, building the controls once, and update(): solve the model, then
-   refresh the status, meters, switches and the live drawing. */
+   refresh the status, switches and the live drawing. */
 (function () {
   "use strict";
 
@@ -249,42 +249,6 @@
   }
   let suggested = new Set();
 
-  // Three bars on one scale: what it needs, what the drivetrain can put down,
-  // what the engine can pull.
-  function renderMeters(r) {
-    const max = Math.max(0.5, r.need, r.grip, r.pull, r.totalGrip) * 1.08;
-    const rows = [
-      { id: "need", label: "Needed to keep going", value: r.need, cls: "need" },
-      { id: "grip", label: "Grip the drivetrain can use", value: r.grip, cls: r.grip + 1e-9 >= r.need ? "ok" : "short",
-        ghost: r.totalGrip, ghostLabel: "all four tyres' grip" },
-      { id: "pull", label: "Engine pull at the wheels" + (r.low ? " (low range)" : ""), value: r.pull,
-        cls: r.pull + 1e-9 >= r.need ? "ok" : "short" }
-    ];
-    const box = $("meters");
-    box.innerHTML = "";
-    rows.forEach((row) => {
-      const div = document.createElement("div");
-      div.className = "meter meter--" + row.cls;
-      div.innerHTML = "<span class=\"meter-label\"></span><span class=\"meter-track\"><span class=\"meter-fill\"></span>" +
-        (row.ghost != null ? "<span class=\"meter-ghost\"></span>" : "") +
-        "<span class=\"meter-need\"></span></span><span class=\"meter-value\"></span>";
-      div.querySelector(".meter-label").textContent = row.label;
-      div.querySelector(".meter-fill").style.width = (row.value / max) * 100 + "%";
-      div.querySelector(".meter-need").style.left = (r.need / max) * 100 + "%";
-      if (row.ghost != null) {
-        const g = div.querySelector(".meter-ghost");
-        g.style.left = (row.ghost / max) * 100 + "%";
-        g.title = row.ghostLabel + ": " + pct(row.ghost);
-      }
-      div.querySelector(".meter-value").textContent = pct(row.value);
-      box.appendChild(div);
-    });
-    const p = document.createElement("p");
-    p.className = "hint meters-hint";
-    p.textContent = "As % of the vehicle's weight. The white line is what it needs; the faint tick on the grip bar is what all four tyres could give if every wheel were locked together.";
-    box.appendChild(p);
-  }
-
   // ---------------------------------------------------------------- update
   function update() {
     state = C.normalise(state);
@@ -330,7 +294,6 @@
       cautions.appendChild(p);
     });
 
-    renderMeters(r);
     V.show(r);
   }
 

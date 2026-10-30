@@ -8,7 +8,7 @@ Repo `psyphin234/4x4-systems` (public), GitHub Pages from `main` / root, since 2
 
 ## Layout (owner, 2026-10-30)
 
-**PC first**: the animation sits in the **centre** with the controls around it: the 4x4 system and "Under each wheel" (High / Low / None per wheel, laid out like the wheels, plus the slope) on the left, the dash switches (transfer lever, CDL, rear/front locker, traction control, low range ratio) and the cautions on the right, the status above and the meters below. Under 1100 px the columns stack (the picture first); phones work but aren't the target. The header is the compact `.brand-bar` (no hologram), so the bench shows near the top of the page.
+**PC first**: the animation sits in the **centre** with the controls around it: the 4x4 system and "Under each wheel" (High / Low / None per wheel, laid out like the wheels, plus the slope) on the left, the dash switches (transfer lever, CDL, rear/front locker, traction control, low range ratio) and the cautions on the right, the status above and the colour key below (the meters under it were removed, owner, 2026-10-30). Under 1100 px the columns stack (the picture first); phones work but aren't the target. The header is the compact `.brand-bar` (no hologram), so the bench shows near the top of the page.
 
 ## The systems and the ground (owner, 2026-10-30)
 
