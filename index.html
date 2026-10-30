@@ -28,8 +28,8 @@
       <a class="back-link" href="https://psyphin.co.za/#tools"><span class="back-link-arrow" aria-hidden="true">&larr;</span> <span class="back-link-label"><span class="back-link-more">More </span>PsyPhin tools</span> <span class="back-link-domain">psyphin.co.za</span></a>
       <nav class="nav" aria-label="Site">
         <a href="#bench" aria-current="page">Drivetrain</a>
-        <a href="#setups">How each one works</a>
         <a href="#diff-demo">Inside a diff</a>
+        <a href="#setups">How each one works</a>
       </nav>
     </div>
     <div class="brand-inner">
@@ -103,6 +103,43 @@
 
     <p class="note-illustrative"><strong>An illustration, not a calculator.</strong> The grip and pull figures are round numbers chosen to show how each system behaves, not measurements of any vehicle. <a href="#explain-gaps">What this page can't tell you</a>.</p>
 
+    <!-- Inside a diff: one axle on its own (owner, 2026-10-30) -->
+    <section class="diff-demo" id="diff-demo" aria-labelledby="dd-title">
+      <h2 id="dd-title" class="setups-title">Inside a diff: where the torque goes</h2>
+      <p class="dd-intro">One axle on its own. Pick the kind of diff, then put a wheel on ice or lift it into the air, and watch how the torque and the turning are shared between the two wheels.</p>
+      <div class="bench bench--diff">
+        <aside class="side">
+          <div class="panel">
+            <p class="panel-title" id="dd-type-label">The diff</p>
+            <div class="seg seg--dd" id="dd-types" role="radiogroup" aria-labelledby="dd-type-label"></div>
+            <p class="hint dd-blurb" id="dd-blurb"></p>
+          </div>
+        </aside>
+
+        <div class="centre">
+          <div class="status" id="dd-status" role="status" aria-live="polite"></div>
+          <div class="view-box">
+            <canvas id="dd-view" aria-label="3D view of one axle's diff between two wheels, animated: drag to turn it, scroll to zoom" role="img"></canvas>
+            <p class="view-hint">Drag to turn &middot; scroll to zoom</p>
+          </div>
+        </div>
+
+        <aside class="side">
+          <div class="panel">
+            <p class="panel-title">Under each wheel</p>
+            <div class="dd-wheels" id="dd-wheels"></div>
+          </div>
+          <ul class="legend legend--side" aria-label="Colour key">
+            <li><span class="key key--flow"></span>Torque going to the ground (thicker = more)</li>
+            <li><span class="key key--spin"></span>Spinning: the torque is lost</li>
+            <li><span class="key key--passive"></span>Turning, no torque</li>
+            <li><span class="key key--lsd"></span>LSD clutch packs <small>(orange: slipping)</small></li>
+            <li><span class="key key--lock"></span>Locker engaged</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
     <!-- How each one works -->
     <section class="setups" id="setups" aria-labelledby="setups-title">
       <h2 id="setups-title" class="setups-title">How each one works</h2>
@@ -143,44 +180,6 @@
           <h3><span class="setup-dot setup-dot--lock"></span>Low range</h3>
           <p>A reduction gear set in the transfer case (the planetary set at the front of the transfer case in the 3D view). It multiplies the engine's pull at the wheels and slows everything down, so you can crawl up steep or rocky ground with control. It adds <strong>pull, not grip</strong>: in mud it only spins the wheels harder.</p>
         </article>
-      </div>
-    </section>
-
-    <!-- Inside a diff: one axle on its own (owner, 2026-10-30) -->
-    <section class="diff-demo" id="diff-demo" aria-labelledby="dd-title">
-      <h2 id="dd-title" class="setups-title">Inside a diff: where the torque goes</h2>
-      <p class="dd-intro">One axle on its own. Pick the kind of diff, then put a wheel on ice or lift it into the air, and watch how the torque and the turning are shared between the two wheels.</p>
-      <div class="bench bench--diff">
-        <aside class="side">
-          <div class="panel">
-            <p class="panel-title" id="dd-type-label">The diff</p>
-            <div class="seg seg--dd" id="dd-types" role="radiogroup" aria-labelledby="dd-type-label"></div>
-            <p class="hint dd-blurb" id="dd-blurb"></p>
-          </div>
-        </aside>
-
-        <div class="centre">
-          <div class="status" id="dd-status" role="status" aria-live="polite"></div>
-          <div class="view-box">
-            <canvas id="dd-view" aria-label="3D view of one axle's diff between two wheels, animated: drag to turn it, scroll to zoom" role="img"></canvas>
-            <p class="view-hint">Drag to turn &middot; scroll to zoom</p>
-          </div>
-          <div class="dd-bars" id="dd-bars"></div>
-        </div>
-
-        <aside class="side">
-          <div class="panel">
-            <p class="panel-title">Under each wheel</p>
-            <div class="dd-wheels" id="dd-wheels"></div>
-          </div>
-          <ul class="legend legend--side" aria-label="Colour key">
-            <li><span class="key key--flow"></span>Torque going to the ground (thicker = more)</li>
-            <li><span class="key key--spin"></span>Spinning: the torque is lost</li>
-            <li><span class="key key--passive"></span>Turning, no torque</li>
-            <li><span class="key key--lsd"></span>LSD clutch packs <small>(orange: slipping)</small></li>
-            <li><span class="key key--lock"></span>Locker engaged</li>
-          </ul>
-        </aside>
       </div>
     </section>
 

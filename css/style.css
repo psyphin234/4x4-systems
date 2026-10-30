@@ -3446,37 +3446,3 @@ select:focus {
 .dd-tag-torque { font-size: 0.8rem; font-weight: 700; color: var(--accent); letter-spacing: 0.04em; }
 .dd-tag-speed { font-size: 0.66rem; color: var(--text-muted); letter-spacing: 0.06em; }
 
-/* the split bars under the picture */
-.dd-bars { display: grid; gap: 10px; padding: 14px 16px 16px; border-top: 1px solid var(--border); }
-.dd-row-title { display: flex; align-items: baseline; gap: 10px; margin: 0 0 5px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text); }
-.dd-row-title small { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-muted); font-size: 0.8rem; }
-
-.dd-split { display: flex; gap: 3px; height: 28px; }
-.dd-seg {
-  display: flex;
-  align-items: center;
-  flex-basis: 0;
-  min-width: 0;
-  padding: 0 10px;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  color: #031022;
-  transition: flex-grow 0.5s ease;
-}
-.dd-seg--r { justify-content: flex-end; }
-.dd-seg.is-thin { padding: 0; color: transparent; }
-.dd-seg--flow { background: linear-gradient(90deg, #7fdcff, var(--accent)); box-shadow: 0 0 12px rgba(76, 201, 255, 0.4); }
-.dd-seg--spin { background: #ff5d73; box-shadow: 0 0 12px rgba(255, 93, 115, 0.45); }
-.dd-seg--none { background: #323a52; color: var(--text-muted); }
-.dd-seg--speed { background: #6b7ea8; color: #fff; }
-
-.dd-gauge { position: relative; height: 12px; border-radius: 999px; background: #1a2238; overflow: hidden; }
-.dd-gauge-fill { display: block; height: 100%; border-radius: 999px; background: var(--pass); box-shadow: 0 0 10px var(--pass); transition: width 0.5s ease; }
-.dd-gauge-fill.is-short { background: var(--fail); box-shadow: 0 0 10px var(--fail); }
-
-@media (prefers-reduced-motion: reduce) {
-  .dd-seg, .dd-gauge-fill { transition: none; }
-}

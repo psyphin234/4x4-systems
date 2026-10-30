@@ -406,48 +406,12 @@
     el.querySelector(".status-sub").textContent = sub;
   }
 
-  // The split bars under the picture: torque and speed, left against right,
-  // and how much of the push needed reaches the ground.
-  function ddBars(r) {
-    const el = $("dd-bars");
-    el.innerHTML = "";
-    const state = (w) => (r.slip[w] ? "spin" : r.torque[w] > 1e-6 ? "flow" : "none");
-    const row = (title, note, shares, kinds) => {
-      const d = document.createElement("div");
-      d.className = "dd-row";
-      d.innerHTML = "<p class=\"dd-row-title\"><span></span><small></small></p><div class=\"dd-split\"><span class=\"dd-seg dd-seg--l\"></span><span class=\"dd-seg dd-seg--r\"></span></div>";
-      d.querySelector(".dd-row-title span").textContent = title;
-      d.querySelector(".dd-row-title small").textContent = note;
-      ["l", "r"].forEach((w) => {
-        const seg = d.querySelector(".dd-seg--" + w);
-        seg.style.flexGrow = Math.max(shares[w], 0.0001);
-        seg.className = "dd-seg dd-seg--" + w + " dd-seg--" + kinds[w];
-        seg.textContent = (w === "l" ? "Left " : "Right ") + pct(shares[w]);
-        if (shares[w] < 0.12) seg.classList.add("is-thin");
-      });
-      el.appendChild(d);
-    };
-    const none = r.ground < 1e-6;
-    row("Torque", none ? "shared 50:50, but of nothing: neither wheel holds any" : "how the diff shares the twisting force", r.torqueShare, { l: state("l"), r: state("r") });
-    row("Speed", "how the turning is shared", r.speedShare, { l: r.slip.l ? "spin" : "speed", r: r.slip.r ? "spin" : "speed" });
-    const g = document.createElement("div");
-    g.className = "dd-row";
-    const f = Math.min(1, r.ground / r.need);
-    g.innerHTML = "<p class=\"dd-row-title\"><span>Reaching the ground</span><small></small></p><div class=\"dd-gauge\"><span class=\"dd-gauge-fill\"></span></div>";
-    g.querySelector("small").textContent = pct(r.ground / r.need) + " of the push it needs to keep going";
-    const fill = g.querySelector(".dd-gauge-fill");
-    fill.style.width = (f * 100).toFixed(1) + "%";
-    fill.classList.toggle("is-short", !r.moves);
-    el.appendChild(g);
-  }
-
   function ddUpdate() {
     const r = C.diffDemo(dd.type, dd.left, dd.right);
     document.querySelectorAll("#dd-types button").forEach((b) => radio(b, b.dataset.id === dd.type));
     $("dd-blurb").textContent = DD.types.find((t) => t.id === dd.type).blurb;
     document.querySelectorAll("#dd-wheels .ground").forEach((b) => radio(b, dd[b.dataset.wheel === "l" ? "left" : "right"] === b.dataset.id));
     ddStatus(r);
-    ddBars(r);
     DV.show(r);
   }
 
