@@ -170,6 +170,11 @@
     eq(at(mud, deg("level")), "move", "level mud: 2H will do");
     eq(at(mud, deg("slope")), "spin", "sloping mud: 2H spins");
     eq(at(mud, deg("slope"), { mode: "4H" }), "move", "sloping mud: 4H drives");
+    eq(at(mud, deg("steep"), { mode: "4H" }), "bog", "steep mud: 4H has the grip, not the pull");
+    eq(at(mud, deg("steep"), { mode: "4L" }), "move", "steep mud: 4L climbs");
+    eq(at(mud, deg("steep"), { system: "torsen", mode: "4L" }), "move", "steep mud: full-time 4L climbs");
+    eq(at(Object.assign({}, mud, { rr: "air" }), deg("steep"), { mode: "4L" }), "spin", "steep, a rear wheel in the air: 4L alone spins");
+    eq(at(Object.assign({}, mud, { rr: "air" }), deg("steep"), { mode: "4L", rearLock: true }), "move", "steep, a rear wheel in the air: 4L + rear locker climbs");
     eq(at(tar, deg("steep")) !== "move", true, "steep tar: 2H is stuck");
     eq(at(tar, deg("steep"), { mode: "4H" }), "bog", "steep tar: 4H bogs");
     eq(at(tar, deg("steep"), { mode: "4L" }), "move", "steep tar: 4L climbs");

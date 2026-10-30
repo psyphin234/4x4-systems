@@ -14,7 +14,7 @@ window.SYS_DATA = {
   // no load, so it has no grip at all.
   surfaces: [
     { id: "tar", name: "High traction", label: "High", short: "Tar", grip: 0.80, roll: 0.015, color: "#3a4256", fleck: "#9aa3b6" },
-    { id: "mud", name: "Low traction",  label: "Low", short: "Loose rock and mud", grip: 0.30, roll: 0.10, color: "#5a3f26", fleck: "#8a6541" },
+    { id: "mud", name: "Low traction",  label: "Low", short: "Loose rock and mud", grip: 0.55, roll: 0.08, color: "#5a3f26", fleck: "#8a6541" },
     { id: "ice", name: "Very low traction", label: "Very low", short: "Ice", grip: 0.10, roll: 0.02, color: "#b9d6ea", fleck: "#eaf6ff" },
     { id: "air", name: "No traction",   label: "None", short: "In the air", grip: 0, roll: 0, color: "#05070f", fleck: "#05070f" }
   ],
@@ -28,10 +28,13 @@ window.SYS_DATA = {
   lowRange: { min: 2.7, max: 4.0, step: 0.1, default: 2.7 },
 
   // The ground's slope: three choices, not a slider (owner, 2026-10-30).
-  // 8 degrees is enough that muddy ground needs 4WD; 25 that tar needs low range.
+  // On low traction: level, 2H will do; 15 degrees needs 4WD; 25 needs low range
+  // too (it has the grip in 4H but not the pull). On tar 25 also needs low range.
+  // (Low traction's grip was 0.30 until 2026-10-30, when the owner asked why the
+  // steep slope couldn't be climbed on it at all.)
   slopes: [
     { id: "level", name: "Level", deg: 0 },
-    { id: "slope", name: "Slope", deg: 8 },
+    { id: "slope", name: "Slope", deg: 15 },
     { id: "steep", name: "Steep slope", deg: 25 }
   ],
 
@@ -91,7 +94,7 @@ window.SYS_DATA = {
   // shown on the page (owner, 2026-10-30: "Under each wheel" is all it needs).
   // Wheels: fl, fr, rl, rr (front/rear, left/right). slope in degrees.
   scenarios: [
-    { id: "mud",   name: "Muddy track",          slope: 5,  wheels: { fl: "mud", fr: "mud", rl: "mud", rr: "mud" },
+    { id: "mud",   name: "Muddy track",          slope: 15, wheels: { fl: "mud", fr: "mud", rl: "mud", rr: "mud" },
       note: "Low traction everywhere: driving more wheels is what counts." },
     { id: "split", name: "One rear wheel in mud", slope: 12, wheels: { fl: "tar", fr: "tar", rl: "mud", rr: "tar" },
       note: "An open diff gives both wheels only what the muddy one can hold." },
