@@ -6,10 +6,12 @@
    wheels. Each wheel can push the ground with at most grip × the load on it.
    What each kind of split can pass on before a wheel spins:
    - open diff: the same torque to both sides, so 2 × what the weaker side holds;
-   - locked (locker, CDL, part-time 4H/4L): both sides turn together, so the sum;
-   - LSD: the stronger side takes up to `bias` × the weaker side's torque;
+   - locked (locker, CDL, part-time 4H/4L, 4HLc): both sides turn together, so the sum;
+   - LSD / Torsen: the stronger side takes up to `bias` × the weaker side's torque;
    - traction control: an open diff whose spinning side is braked, so the other
      side gets drive; at the ground that's the sum, like a locker;
+   - wet clutch (4A): the rear is driven, and the clutch passes up to its limit
+     to the front once the rear needs help;
    - 2H: everything to the rear axle. */
 window.SYS_CALC = (function () {
   "use strict";
@@ -19,15 +21,32 @@ window.SYS_CALC = (function () {
   const WHEELS = ["fl", "fr", "rl", "rr"];
   const surface = (id) => D.surfaces.find((s) => s.id === id) || D.surfaces[0];
   const system = (id) => D.systems.find((s) => s.id === id) || D.systems[0];
+  const mode = (s) => system(s.system).modes.find((m) => m.id === s.mode) || system(s.system).modes[0];
 
-  // Keep a state within what its system has (e.g. no 2H on a full-time 4x4).
+  // Keep a state within what its system has. Switching systems keeps the
+  // nearest lever position: low range stays low, 2WD stays 2WD where there is one.
   function normalise(state) {
     const s = Object.assign({}, state);
     const sys = system(s.system);
-    if (sys.ranges.indexOf(s.range) < 0) s.range = s.range === "2H" || !sys.ranges.includes("4L") ? sys.ranges[0] : "4L";
+    s.system = sys.id;
+    if (!sys.modes.some((m) => m.id === s.mode)) {
+      const wasLow = /L/.test(String(s.mode).slice(1));
+      const was2 = s.mode === "2H";
+      const pick = (was2 && sys.modes.find((m) => m.centre === "rear")) ||
+        (wasLow && sys.modes.find((m) => m.low)) ||
+        sys.modes.find((m) => m.centre !== "rear" && !m.low) || sys.modes[0];
+      s.mode = pick.id;
+    }
     if (!sys.cdl) s.cdl = false;
-    if (!sys.lockers) { s.rearLock = false; s.frontLock = false; }
+    fixSurfaces(s);
     return s;
+  }
+
+  // Unknown surfaces (from an older saved state) fall back to tar.
+  function fixSurfaces(s) {
+    const sf = Object.assign({}, s.surfaces || {});
+    WHEELS.forEach((w) => { if (!D.surfaces.some((x) => x.id === sf[w])) sf[w] = "tar"; });
+    s.surfaces = sf;
   }
 
   // The load and grip under each wheel. The wheels on the ground share the
@@ -52,13 +71,12 @@ window.SYS_CALC = (function () {
     return Math.sin(a) + roll * Math.cos(a);
   }
 
-  // What each split is, from the switches.
+  // What each split is, from the lever and the switches.
   function splits(state) {
     const s = normalise(state);
-    let centre;
-    if (s.system === "part") centre = s.range === "2H" ? "rear" : "locked";
-    else if (s.cdl) centre = "locked";
-    else centre = s.trc ? "tc" : "open";
+    let centre = mode(s).centre;
+    if (s.cdl && centre === "torsen") centre = "locked";
+    if (s.trc && (centre === "open" || centre === "torsen")) centre = "tc";
     const rear = s.rearLock ? "locked" : s.trc ? "tc" : s.rearLsd ? "lsd" : "open";
     const front = s.frontLock ? "locked" : s.trc ? "tc" : "open";
     return { centre: centre, front: front, rear: rear };
@@ -74,18 +92,22 @@ window.SYS_CALC = (function () {
     };
   }
 
+  const bias = (type) => (type === "torsen" ? D.torsen.bias : D.lsd.bias);
+
   // The most a node can pass to the ground before a wheel spins.
   function capacity(n) {
     if (n.type === "wheel") return n.grip;
     if (n.type === "rear") return capacity(n.b);
     const ca = capacity(n.a), cb = capacity(n.b);
     if (n.type === "open") return 2 * Math.min(ca, cb);
-    if (n.type === "lsd") return Math.min(ca + cb, Math.min(ca, cb) * (1 + D.lsd.bias));
+    if (n.type === "lsd" || n.type === "torsen") return Math.min(ca + cb, Math.min(ca, cb) * (1 + bias(n.type)));
+    if (n.type === "clutch") return cb + Math.min(ca, D.clutch.max); // a = front, b = rear (driven)
     return ca + cb; // locked, tc
   }
 
   // Push F through node n; writes each wheel's demand, ground force, slip and
-  // brake into out. braked: this branch is being held by traction control.
+  // brake into out, and each split's own story into out._splits.
+  // braked: this branch is being held by traction control.
   function distribute(n, F, out, braked) {
     if (n.type === "wheel") {
       const force = Math.min(F, n.grip);
@@ -96,11 +118,19 @@ window.SYS_CALC = (function () {
       };
       return force;
     }
+    out._splits = out._splits || {};
     if (n.type === "rear") {
       distribute(n.a, 0, out, false);
+      out._splits[n.id] = { a: 0, b: F };
       return distribute(n.b, F, out, false);
     }
     const ca = capacity(n.a), cb = capacity(n.b);
+    if (n.type === "clutch") {
+      // The rear is driven; the clutch tops it up from the front, up to its limit.
+      const fa = Math.min(Math.max(F - cb, 0), D.clutch.max);
+      out._splits[n.id] = { a: fa, b: F - fa, clutch: fa < EPS ? "open" : fa >= D.clutch.max - EPS ? "max" : "slip" };
+      return distribute(n.a, fa, out, braked) + distribute(n.b, F - fa, out, braked);
+    }
     const weakIsA = ca <= cb;
     const weak = weakIsA ? n.a : n.b, strong = weakIsA ? n.b : n.a;
     const cw = Math.min(ca, cb), cs = Math.max(ca, cb);
@@ -113,12 +143,14 @@ window.SYS_CALC = (function () {
       fw = fs = F / 2; // within what the weak side holds: an even split
     } else if (n.type === "open") {
       fw = F / 2; fs = cw; // the weak side spins; the strong side gets only what it holds
-    } else if (n.type === "lsd") {
+    } else if (n.type === "lsd" || n.type === "torsen") {
+      const b = bias(n.type);
       if (F <= capacity(n) + EPS) { fw = cw; fs = F - cw; } // the bias carries the rest across
-      else { fw = F / 2; fs = D.lsd.bias * cw <= cs ? D.lsd.bias * cw : F - cw; }
+      else { fw = F / 2; fs = b * cw <= cs ? b * cw : F - cw; }
     } else { // tc: brake the weak side, the rest goes to the strong side
       fw = cw; fs = F - cw; brakeWeak = true;
     }
+    out._splits[n.id] = weakIsA ? { a: fw, b: fs } : { a: fs, b: fw };
     if (weakIsA) {
       return distribute(weak, fw, out, braked || brakeWeak) + distribute(strong, fs, out, braked);
     }
@@ -130,28 +162,32 @@ window.SYS_CALC = (function () {
   // "bog" (not enough engine pull: it bogs down; low range is the answer).
   function solve(state) {
     const s = normalise(state);
+    const m = mode(s);
     const grip = wheelGrip(s.surfaces);
     const t = tree(s, grip);
     const cap = capacity(t);
     const need = needed(s.surfaces, s.slope);
-    const pull = D.engine.pullHigh * (s.range === "4L" ? s.lowRatio : 1);
+    const pull = D.engine.pullHigh * (m.low ? s.lowRatio : 1);
     let status, F;
     if (need <= cap + EPS && need <= pull + EPS) { status = "move"; F = need; }
     else if (cap < pull && cap < need) { status = "spin"; F = pull; }
     else { status = "bog"; F = pull; }
     const wheels = {};
     const ground = distribute(t, F, wheels, false);
+    const centre = wheels._splits.centre;
+    delete wheels._splits;
     const k = splits(s);
     WHEELS.forEach((w) => {
       Object.assign(wheels[w], grip[w]);
       wheels[w].driven = !(k.centre === "rear" && (w === "fl" || w === "fr"));
     });
     return {
-      state: s, splits: k, status: status, need: need, grip: cap, pull: pull, ground: ground,
+      state: s, mode: m, low: !!m.low, splits: k, status: status, need: need, grip: cap, pull: pull, ground: ground,
       totalGrip: WHEELS.reduce((t2, w) => t2 + grip[w].grip, 0),
       wheels: wheels,
       frontForce: wheels.fl.force + wheels.fr.force,
       rearForce: wheels.rl.force + wheels.rr.force,
+      clutch: centre.clutch || null,
       warnings: warnings(s, k)
     };
   }
@@ -161,9 +197,10 @@ window.SYS_CALC = (function () {
     const out = [];
     const onTar = WHEELS.some((w) => s.surfaces[w] === "tar");
     if (onTar && k.centre === "locked") {
-      out.push({ id: "windup", text: s.system === "part"
-        ? "4H/4L on tar: with no centre diff the front and rear can't turn at different speeds, so the drivetrain winds up in turns. Use 2H on hard grippy surfaces."
-        : "CDL on tar: the front and rear shafts can't turn at different speeds, so the drivetrain winds up in turns. Unlock it on hard grippy surfaces." });
+      out.push({ id: "windup", text: (s.cdl ? "CDL" : mode(s).label) +
+        " on tar: the front and rear can't turn at different speeds, so the drivetrain winds up in turns. " +
+        (s.system === "part" ? "Use 2H on hard grippy surfaces." : s.system === "torsen" ? "Unlock the CDL on hard grippy surfaces." :
+          s.system === "ss2" ? "Use 2H or 4H on hard grippy surfaces." : "Use 2H or 4A on hard grippy surfaces.") });
     }
     if (onTar && (k.front === "locked" || k.rear === "locked")) {
       out.push({ id: "locker", text: "Locker on tar: both wheels on the axle must turn together, so it fights the steering and scrubs the tyres in turns. Lockers are for slow going on loose ground." });
@@ -179,10 +216,10 @@ window.SYS_CALC = (function () {
     const s = normalise(state);
     const sys = system(s.system);
     const out = [];
-    sys.ranges.forEach((r) => { if (r !== s.range) out.push({ id: "range-" + r, label: r, change: { range: r } }); });
+    sys.modes.forEach((m) => { if (m.id !== s.mode) out.push({ id: "mode-" + m.id, label: m.label, change: { mode: m.id } }); });
     if (sys.cdl && !s.cdl) out.push({ id: "cdl", label: "CDL", change: { cdl: true } });
-    if (sys.lockers && !s.rearLock) out.push({ id: "rearLock", label: "Rear locker", change: { rearLock: true } });
-    if (sys.lockers && !s.frontLock) out.push({ id: "frontLock", label: "Front locker", change: { frontLock: true } });
+    if (!s.rearLock) out.push({ id: "rearLock", label: "Rear locker", change: { rearLock: true } });
+    if (!s.frontLock) out.push({ id: "frontLock", label: "Front locker", change: { frontLock: true } });
     if (!s.trc) out.push({ id: "trc", label: "Traction control", change: { trc: true } });
     return out;
   }
@@ -193,12 +230,13 @@ window.SYS_CALC = (function () {
     const s = normalise(state);
     if (solve(s).status === "move") return [];
     const moves = (changes) => solve(Object.assign({}, s, ...changes.map((t) => t.change))).status === "move";
-    const singles = toggles(s).filter((t) => moves([t])).map((t) => [t]);
+    const ts = toggles(s);
+    const singles = ts.filter((t) => moves([t])).map((t) => [t]);
     if (singles.length) return singles;
-    const ts = toggles(s), pairs = [];
+    const pairs = [];
     for (let i = 0; i < ts.length; i++) {
       for (let j = i + 1; j < ts.length; j++) {
-        if (ts[i].id.startsWith("range-") && ts[j].id.startsWith("range-")) continue;
+        if (ts[i].id.startsWith("mode-") && ts[j].id.startsWith("mode-")) continue;
         if (moves([ts[i], ts[j]])) pairs.push([ts[i], ts[j]]);
       }
     }
@@ -206,7 +244,7 @@ window.SYS_CALC = (function () {
   }
 
   return {
-    WHEELS, surface, system, normalise, wheelGrip, needed, splits, tree,
+    WHEELS, surface, system, mode, normalise, wheelGrip, needed, splits, tree,
     capacity, distribute, solve, warnings, toggles, suggest
   };
 })();

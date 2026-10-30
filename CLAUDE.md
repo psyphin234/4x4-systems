@@ -1,37 +1,58 @@
 # 4x4 Systems Explained
 
-Static page for the PsyPhin site, started 2026-10-30: an **interactive, animated drivetrain** showing what 2H / 4H / 4L, the centre diff lock (CDL), front and rear lockers, an LSD and traction control each do on slippery ground. Same "deep space" look as the other tools (copied from `../Ropes_Recovery`: favicons, `logo.jpg`, `js/circuit.js`, and its `css/style.css` minus the ropes-only section). This page's own styles are the "4x4 Systems Explained" block at the end of style.css.
+Static page for the PsyPhin site, started 2026-10-30: an **interactive, animated 3D drivetrain** showing how four kinds of 4x4 system (and lockers, an LSD, traction control and low range) share the drive on slippery ground. Same "deep space" look as the other tools (copied from `../Ropes_Recovery`: favicons, `logo.jpg`, `js/circuit.js`, and its `css/style.css` minus the ropes-only section). This page's own styles are the "4x4 Systems Explained" and "the 3D view" blocks at the end of style.css.
 
-Repo `psyphin234/4x4-systems` (public), GitHub Pages from `main` / root, since 2026-10-30, for the owner to test. **Test address: https://psyphin.co.za/4x4-systems/** (the default project-page address; no `CNAME` yet). **No psyphin.co.za card yet** (owner, 2026-10-30: wants to test it first). The page carries `noindex` and the amber `.construction` banner. The canonical/OG tags point at `https://4x4.psyphin.co.za/` (a guess: confirm with the owner before creating the DNS record and `CNAME`). Ask before pushing; check builds with `gh api repos/psyphin234/4x4-systems/pages/builds/latest`.
+Repo `psyphin234/4x4-systems` (public), GitHub Pages from `main` / root, since 2026-10-30, for the owner to test. **Test address: https://psyphin.co.za/4x4-systems/** (the default project-page address; no `CNAME` yet). **No psyphin.co.za card yet** (owner, 2026-10-30: wants to test it first). The page carries `noindex` and the amber `.construction` banner. Check builds with `gh api repos/psyphin234/4x4-systems/pages/builds/latest`.
+
+**Own address `4x4.psyphin.co.za`** (owner asked for it, 2026-10-30): waiting on the owner to add the Afrihost CNAME `4x4` → `psyphin234.github.io` (it didn't resolve on 2026-10-30). Only once it resolves: set the custom domain in the repo's Pages settings, `git pull` the `CNAME` file GitHub commits, then turn on Enforce HTTPS once the certificate is issued. Setting the domain before the DNS works would break the test link. The canonical/OG tags already point at `https://4x4.psyphin.co.za/`.
 
 ## Layout (owner, 2026-10-30)
 
-**PC first**: the animation sits in the **centre** with the controls around it: the vehicle and the ground on the left, the dash switches (transfer lever, CDL, rear/front locker, traction control, low range ratio) and the per-wheel surface boxes on the right, the status above and the meters below. Under 1100 px the columns stack (the picture first); phones work but aren't the target. The header is the compact `.brand-bar` (no hologram), so the bench shows near the top of the page.
+**PC first**: the animation sits in the **centre** with the controls around it: the 4x4 system and the ground on the left, the dash switches (transfer lever, CDL, rear/front locker, traction control, low range ratio) and the per-wheel surface boxes on the right, the status above and the meters below. Under 1100 px the columns stack (the picture first); phones work but aren't the target. The header is the compact `.brand-bar` (no hologram), so the bench shows near the top of the page.
 
-**Look of the picture** (owner's reference images, 2026-10-30: `outline.jpeg`, a bare rolling chassis, and `images.jpeg`, a top view with a different surface under each wheel and the drivetrain glowing blue): a top view of a bare chassis (ladder frame, beam axles, coil springs, glowing engine / gearbox / transfer case), front at the top, and the ground split into four quarters, one per wheel. The reference images are press photos: **don't publish them** (gitignored); everything on the page is drawn on the canvas.
+## The systems and the ground (owner, 2026-10-30)
+
+Four systems, each with its own lever positions (`systems` in data.js; `mode.centre` says what joins the front and rear outputs):
+- **Traditional part-time 4x4**: 2H / 4H / 4L; chain drive, 2-4 collar, no centre diff.
+- **Torsen / planetary full-time 4x4**: 4H / 4L + CDL switch; planetary centre diff, modelled as a Torsen (bias ratio).
+- **Hybrid multi-mode, mechanical centre diff (like Super Select II)**: 2H / 4H / 4HLc / 4LLc; open bevel centre diff, locked in the Lc modes (no separate CDL switch).
+- **Hybrid multi-mode, active wet clutch (TOD)**: 2H / 4A / 4H / 4L; in 4A the rear drives and the clutch feeds the front up to its limit; 4H/4L clamp it.
+
+**The ground is kept simple**: high traction (tar), low traction (mud), no traction (in the air). Six "The ground" presets use only those.
+
+## The 3D view (`js/diagram3d.js`, three.js r149)
+
+The owner asked for a 3D diagram, very detailed on the transfer case and diffs, colour-coded for active/passive drive. three.js **r149** is vendored as `js/vendor/three.min.js` (MIT, licence in `js/vendor/three-LICENSE.txt`): the last line of releases with a classic (non-module) build, so the page still opens from disk with no build step. Don't swap in a CDN module build: module scripts don't load from `file://`.
+
+What's drawn: a bare rolling chassis (owner's reference images, 2026-10-30: `outline.jpeg`, a rolling chassis, and `images.jpeg`, a different surface under each wheel and the drivetrain glowing blue; they're press photos, **don't publish them**, gitignored). Ladder frame, coil springs and shocks, see-through engine/gearbox; a see-through transfer case with the high gear, low gear and countershaft, a sliding range collar, the chain to the front output and the system's centre unit (2-4 collar, planetary diff + CDL collar, bevel diff + lock collar, or wet clutch pack + electromagnet); prop shafts with UJs; axle diffs with ring and pinion, carrier, spider and side gears, the locker's dog collar and (rear) LSD clutch packs; see-through axle tubes with the half shafts inside; wheels with tread, rims, brake discs and callipers. The ground is four tiles; "no traction" drops the tile into a lit pit so the tyre hangs free.
+
+**Colour code** (the legend under the view): active = cyan, brighter with more drive; passive = steel blue (turning, no drive); idle = dark grey (still, not connected); locked/engaged = gold; spinning wheel = red; clutch slipping = orange; traction-control brake = amber; gripping wheel's ring = green. Colours follow the model's speeds, not the animation, so they also show under reduced motion.
+
+Camera: drag to orbit, scroll to zoom, buttons for Whole drivetrain / Transfer case / Front diff / Rear diff (views look in from the side, under the frame; the frame, springs and shocks fade when zoomed in). `#view-tcase`, `#view-front`, `#view-rear` in the URL open zoomed in. Labels are HTML tags projected onto the parts; the small part labels show only when zoomed in.
 
 ## Figures are illustrative
 
-Unlike the other tools, this page is an **illustration, not a calculator**. The grip, rolling resistance, engine pull and LSD bias in `js/data.js` are round numbers chosen to show the behaviour, and the page says so (under the bench, on the canvas, and in "What this page can't tell you", built from `gaps` in data.js). There's no sources page yet. If the owner wants manufacturer sources (handbook wording on 4H on tar, locker use, etc.), add them under the usual source policy (see `../Ropes_Recovery/CLAUDE.md`).
+Unlike the other tools, this page is an **illustration, not a calculator**. The grip, rolling resistance, engine pull, LSD and Torsen bias ratios and the wet clutch's limit in `js/data.js` are round numbers chosen to show the behaviour, and the page says so (under the bench, and in "What this page can't tell you", built from `gaps` in data.js). There's no sources page yet. If the owner wants manufacturer sources, add them under the usual source policy (see `../Ropes_Recovery/CLAUDE.md`).
 
 ## The model (`js/calc.js`, pure, tested)
 
-Forces are fractions of the vehicle's weight. Wheels on the ground share the weight evenly; each grips at most `grip × load`. The drivetrain is a tree (centre → front/rear axle diff → wheels). What a split can pass on before a wheel spins: open 2 × the weaker side; locked the sum; LSD min(sum, weaker × (1 + bias)); traction control the sum (it brakes the spinning side); 2H everything to the rear. `solve()` gives `move` (needed ≤ grip and ≤ engine pull), `spin` (not enough grip), or `bog` (not enough engine pull: low range multiplies the pull, never the grip). `suggest()` finds the fewest switch presses that get it moving (single, then pairs). Shown as "Gets it moving" buttons, and the matching dash switches pulse.
+Forces are fractions of the vehicle's weight. Wheels on the ground share the weight evenly; each grips at most `grip × load`. The drivetrain is a tree (centre → front/rear axle diff → wheels). What a split can pass on before a wheel spins: open 2 × the weaker side; locked the sum; LSD/Torsen min(sum, weaker × (1 + bias)); traction control the sum (it brakes the spinning side; it also acts on open and Torsen centres); wet clutch the rear plus up to the clutch's limit to the front; 2H everything to the rear. `solve()` gives `move` (needed ≤ grip and ≤ engine pull), `spin` (not enough grip), or `bog` (not enough engine pull: low range multiplies the pull, never the grip). `suggest()` finds the fewest presses that get it moving (single, then pairs): "Gets it moving" buttons, and the matching dash switches pulse. `normalise()` keeps the nearest lever position when the system changes.
 
 ## Structure
 
 ```
-index.html       The page: bench (left panels, centre canvas, right dash), "How each one works" cards, explainers, disclaimer
-js/data.js       Surfaces, engine pull, low range slider range, LSD bias, systems, scenarios ("The ground"), defaults, gaps
-js/calc.js       The model: normalise, wheelGrip, needed, splits, capacity, distribute, solve, warnings, suggest
-js/diagram.js    The canvas animation (draws only): quarters of ground, chassis, shafts with flowing light, diffs, wheels, flecks
-js/app.js        State (localStorage key 4x4-systems-v1), building the controls, update()
-js/circuit.js    The circuit board behind the page (identical on every PsyPhin site)
-tests/           index.html + calc.test.js; run.ps1 runs them in headless Edge
+index.html            The page: bench (left panels, centre 3D view, right dash), "How each one works" cards, explainers, disclaimer
+js/data.js            Surfaces, engine pull, low range slider, LSD/Torsen bias, clutch limit, systems and their modes, scenarios, defaults, gaps
+js/calc.js            The model: normalise, wheelGrip, needed, splits, capacity, distribute, solve, warnings, toggles, suggest
+js/diagram3d.js       The 3D view (draws only): build*, paint (colour code), speeds, camera, labels, loop
+js/vendor/three.min.js  three.js r149 (MIT)
+js/app.js             State (localStorage key 4x4-systems-v2), building the controls, update()
+js/circuit.js         The circuit board behind the page (identical on every PsyPhin site)
+tests/                index.html + calc.test.js; run.ps1 runs them in headless Edge
 ```
 
 ## Preview and test
 
 - Open `index.html` from disk.
 - Tests: `powershell -ExecutionPolicy Bypass -File tests\run.ps1`.
-- `shot.tmp.html?s=<state JSON>` presets localStorage and opens the page (handy for headless screenshots of a state; gitignored).
+- `shot.tmp.html?s=<state JSON>&v=<view>` presets localStorage and opens the page (gitignored). Headless Edge needs `--use-angle=swiftshader --enable-unsafe-swiftshader` for WebGL, and runs few animation frames: add `--force-prefers-reduced-motion` so the zoom views jump straight there.

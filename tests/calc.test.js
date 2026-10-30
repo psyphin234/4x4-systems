@@ -43,15 +43,16 @@
     }));
   });
 
-  test("defaults are a valid state", () => {
+  test("defaults are a valid state; every system has modes", () => {
     eq(!!scenario(D.defaults.scenario), true, "default scenario");
-    eq(C.system(D.defaults.system).ranges.includes(D.defaults.range), true, "default range");
+    eq(C.system(D.defaults.system).modes.some((m) => m.id === D.defaults.mode), true, "default mode");
+    D.systems.forEach((sys) => eq(sys.modes.length >= 2, true, sys.id + " modes"));
   });
 
   // ------------------------------------------------------------ the splits
-  const g = (a, b, c, d) => ({ fl: a, fr: b, rl: c, rr: d });
+  const leaf = (id, grip) => ({ type: "wheel", id: id, grip: grip });
   test("open diff passes twice the weaker side", () => {
-    const t = { type: "open", a: { type: "wheel", id: "fl", grip: 0.05 }, b: { type: "wheel", id: "fr", grip: 0.3 } };
+    const t = { type: "open", a: leaf("fl", 0.05), b: leaf("fr", 0.3) };
     near(C.capacity(t), 0.1, 1e-9, "capacity");
     const out = {};
     near(C.distribute(t, 0.4, out), 0.1, 1e-9, "ground");
@@ -60,8 +61,8 @@
     near(out.fr.force, 0.05, 1e-9, "strong side gets what the weak side holds");
   });
 
-  test("locked diff passes the sum; both spin when over it", () => {
-    const t = { type: "locked", a: { type: "wheel", id: "fl", grip: 0 }, b: { type: "wheel", id: "fr", grip: 0.3 } };
+  test("locked diff passes the sum", () => {
+    const t = { type: "locked", a: leaf("fl", 0), b: leaf("fr", 0.3) };
     near(C.capacity(t), 0.3, 1e-9, "capacity");
     const out = {};
     C.distribute(t, 0.2, out);
@@ -69,19 +70,32 @@
     eq(out.fr.slip, false, "no slip under capacity");
   });
 
-  test("LSD: the strong side takes up to bias × the weak side", () => {
-    const t = { type: "lsd", a: { type: "wheel", id: "rl", grip: 0.05 }, b: { type: "wheel", id: "rr", grip: 0.3 } };
-    near(C.capacity(t), 0.05 * (1 + D.lsd.bias), 1e-9, "capacity");
+  test("LSD and Torsen: the strong side takes up to bias × the weak side", () => {
+    const t = { type: "lsd", a: leaf("rl", 0.05), b: leaf("rr", 0.3) };
+    near(C.capacity(t), 0.05 * (1 + D.lsd.bias), 1e-9, "LSD capacity");
     const out = {};
     C.distribute(t, 0.15, out);
     eq(out.rl.slip || out.rr.slip, false, "under capacity nothing spins");
-    near(out.rl.force + out.rr.force, 0.15, 1e-9, "all of it reaches the ground");
-    const air = { type: "lsd", a: { type: "wheel", id: "rl", grip: 0 }, b: { type: "wheel", id: "rr", grip: 0.3 } };
-    eq(C.capacity(air), 0, "a lifted wheel leaves an LSD nothing to bias");
+    const ts = { type: "torsen", a: leaf("fl", 0.05), b: leaf("rl", 0.5) };
+    near(C.capacity(ts), 0.05 * (1 + D.torsen.bias), 1e-9, "Torsen capacity");
+    eq(C.capacity({ type: "torsen", a: leaf("fl", 0), b: leaf("rl", 0.3) }), 0, "nothing to bias against a lifted end");
+  });
+
+  test("wet clutch: rear first, the front tops up to the clutch's limit", () => {
+    const t = { type: "clutch", a: leaf("fl", 0.4), b: leaf("rl", 0.1) };
+    near(C.capacity(t), 0.1 + D.clutch.max, 1e-9, "capacity");
+    let out = {};
+    C.distribute(t, 0.08, out);
+    eq(out.fl.force, 0, "front idle while the rear holds");
+    eq(out._splits.centre === undefined, true, "split recorded by id only");
+    out = {};
+    C.distribute(Object.assign({ id: "centre" }, t), 0.2, out);
+    near(out.fl.force, 0.1, 1e-9, "front takes the rest");
+    eq(out._splits.centre.clutch, "slip", "clutch slipping");
   });
 
   test("traction control brakes the weak side and drives the other", () => {
-    const t = { type: "tc", a: { type: "wheel", id: "rl", grip: 0 }, b: { type: "wheel", id: "rr", grip: 0.3 } };
+    const t = { type: "tc", a: leaf("rl", 0), b: leaf("rr", 0.3) };
     const out = {};
     C.distribute(t, 0.2, out, false);
     eq(out.rl.braked, true, "lifted wheel braked");
@@ -89,72 +103,71 @@
   });
 
   test("load is shared by the wheels on the ground", () => {
-    const w = C.wheelGrip(g("air", "rock", "rock", "air"));
+    const w = C.wheelGrip({ fl: "air", fr: "tar", rl: "tar", rr: "air" });
     near(w.fr.load, 0.5, 1e-9, "load");
-    near(w.fr.grip, 0.35, 1e-9, "grip");
+    near(w.fr.grip, 0.4, 1e-9, "grip");
     eq(w.fl.grip, 0, "air has no grip");
   });
 
-  // ------------------------------------------------------------ the scenarios behave as their notes say
-  test("muddy track: 2H spins, 4H drives", () => {
-    eq(status("mud"), "spin", "2H");
-    eq(status("mud", { range: "4H" }), "move", "4H");
+  // ------------------------------------------------------------ the systems behave as they should
+  test("muddy track: 2H spins, every 4WD mode drives", () => {
+    eq(status("mud"), "spin", "part-time 2H");
+    eq(status("mud", { mode: "4H" }), "move", "part-time 4H");
+    eq(status("mud", { system: "torsen", mode: "4H" }), "move", "Torsen");
+    eq(status("mud", { system: "ss2", mode: "4H" }), "move", "SSII 4H");
+    eq(status("mud", { system: "tod", mode: "4A" }), "move", "TOD 4A");
   });
 
-  test("one wheel on ice: open full-time spins, CDL drives, part-time 4H drives", () => {
-    eq(status("ice", { system: "full", range: "4H" }), "spin", "full-time open");
-    eq(status("ice", { system: "full", range: "4H", cdl: true }), "move", "CDL");
-    eq(status("ice", { range: "4H" }), "move", "part-time 4H");
-    eq(status("ice"), "spin", "2H");
+  test("rear wheel in the air: unlocked centres take nothing; locked or clutch drives", () => {
+    eq(status("lift", { system: "torsen", mode: "4H" }), "spin", "Torsen");
+    eq(status("lift", { system: "torsen", mode: "4H", cdl: true }), "move", "Torsen + CDL");
+    eq(status("lift", { system: "ss2", mode: "4H" }), "spin", "SSII 4H");
+    eq(status("lift", { system: "ss2", mode: "4HLc" }), "move", "SSII 4HLc");
+    eq(status("lift", { system: "tod", mode: "4A" }), "move", "TOD 4A");
+    eq(status("lift", { mode: "4H" }), "move", "part-time 4H");
+    eq(status("lift"), "spin", "2H");
   });
 
-  test("rear wheel in the air: open centre takes nothing, CDL fixes it", () => {
-    eq(status("lift", { system: "full", range: "4H" }), "spin", "open centre");
-    eq(status("lift", { system: "full", range: "4H", cdl: true }), "move", "CDL");
-    eq(status("lift", { system: "awd", range: "4H", trc: true }), "move", "AWD with traction control");
+  test("cross-axle: a locked centre alone isn't enough", () => {
+    eq(status("cross", { mode: "4H" }), "spin", "part-time 4H");
+    eq(status("cross", { mode: "4H", rearLock: true }), "move", "4H + rear locker");
+    eq(status("cross", { system: "torsen", mode: "4H", cdl: true }), "spin", "CDL only");
+    eq(status("cross", { system: "torsen", mode: "4H", cdl: true, rearLock: true }), "move", "CDL + rear locker");
+    eq(status("cross", { system: "torsen", mode: "4H", trc: true }), "move", "traction control");
   });
 
-  test("cross-axle: CDL alone or a locker alone isn't enough on full-time", () => {
-    const full = { system: "full", range: "4H" };
-    eq(status("cross", full), "spin", "open");
-    eq(status("cross", Object.assign({}, full, { cdl: true })), "spin", "CDL only");
-    eq(status("cross", Object.assign({}, full, { rearLock: true })), "spin", "rear locker only");
-    eq(status("cross", Object.assign({}, full, { cdl: true, rearLock: true })), "move", "CDL + rear locker");
-    eq(status("cross", Object.assign({}, full, { trc: true })), "move", "traction control");
-  });
-
-  test("steep rock: high range bogs, low range climbs", () => {
-    eq(status("rock", { range: "4H" }), "bog", "4H");
-    eq(status("rock", { range: "4L" }), "move", "4L");
-    eq(status("rock"), "spin", "2H");
+  test("steep climb: high range bogs, low range climbs", () => {
+    eq(status("steep", { mode: "4H" }), "bog", "4H");
+    eq(status("steep", { mode: "4L" }), "move", "4L");
+    eq(status("steep", { system: "ss2", mode: "4LLc" }), "move", "SSII 4LLc");
   });
 
   test("low range adds pull, not grip", () => {
-    const hi = C.solve(st("mud", { range: "4H" })), lo = C.solve(st("mud", { range: "4L" }));
+    const hi = C.solve(st("mud", { mode: "4H" })), lo = C.solve(st("mud", { mode: "4L" }));
     near(lo.pull, hi.pull * D.defaults.lowRatio, 1e-9, "pull");
     near(lo.grip, hi.grip, 1e-9, "grip unchanged");
   });
 
-  test("normalise keeps switches within the system", () => {
-    const s = C.normalise({ system: "full", range: "2H", rearLock: true, cdl: true });
-    eq(s.range, "4H", "no 2H on full-time");
-    const a = C.normalise({ system: "awd", range: "4L", rearLock: true, cdl: true });
-    eq(a.range, "4H", "AWD range");
-    eq(a.cdl || a.rearLock, false, "AWD has no CDL or lockers");
+  test("switching systems keeps the nearest lever position", () => {
+    eq(C.normalise({ system: "torsen", mode: "2H" }).mode, "4H", "no 2H on full-time");
+    eq(C.normalise({ system: "ss2", mode: "4L" }).mode, "4LLc", "low stays low");
+    eq(C.normalise({ system: "tod", mode: "4LLc" }).mode, "4L", "low stays low");
+    eq(C.normalise({ system: "part", mode: "4A" }).mode, "4H", "4A to 4H");
+    eq(C.normalise({ system: "part", mode: "2H", cdl: true }).cdl, false, "no CDL on part-time");
   });
 
-  test("tar: locked centre warns of wind-up", () => {
-    const r = C.solve(st("tar", { range: "4H" }));
-    eq(r.status, "move", "moves");
-    eq(r.warnings.some((w) => w.id === "windup"), true, "warning");
-    eq(C.solve(st("tar", { system: "full", range: "4H" })).warnings.length, 0, "open centre is fine");
+  test("tar: a locked centre warns of wind-up; the open ones don't", () => {
+    eq(C.solve(st("tar", { mode: "4H" })).warnings.some((w) => w.id === "windup"), true, "part-time 4H");
+    eq(C.solve(st("tar", { system: "ss2", mode: "4H" })).warnings.length, 0, "SSII 4H");
+    eq(C.solve(st("tar", { system: "tod", mode: "4A" })).warnings.length, 0, "TOD 4A");
+    eq(C.solve(st("tar", { system: "torsen", mode: "4H" })).warnings.length, 0, "Torsen");
   });
 
   test("suggest finds the fewest presses", () => {
     const one = C.suggest(st("mud"));
     eq(one.every((o) => o.length === 1), true, "single presses for mud");
-    eq(one.some((o) => o[0].id === "range-4H"), true, "4H suggested");
-    eq(C.suggest(st("mud", { range: "4H" })).length, 0, "nothing when moving");
+    eq(one.some((o) => o[0].id === "mode-4H"), true, "4H suggested");
+    eq(C.suggest(st("mud", { mode: "4H" })).length, 0, "nothing when moving");
   });
 
   // ------------------------------------------------------------ report

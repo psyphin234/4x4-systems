@@ -6,7 +6,7 @@
   const D = window.SYS_DATA;
   const C = window.SYS_CALC;
   const V = window.SYS_DIAGRAM;
-  const KEY = "4x4-systems-v1";
+  const KEY = "4x4-systems-v2";
   const $ = (id) => document.getElementById(id);
   const WHEEL_NAMES = { fl: "front left", fr: "front right", rl: "rear left", rr: "rear right" };
   const WHEEL_SHORT = { fl: "Front left", fr: "Front right", rl: "Rear left", rr: "Rear right" };
@@ -49,7 +49,7 @@
       b.dataset.id = sys.id;
       b.innerHTML = "<span class=\"pick-name\"></span><span class=\"pick-sub\"></span>";
       b.querySelector(".pick-name").textContent = sys.name;
-      b.querySelector(".pick-sub").textContent = sys.ranges.join(" · ") + (sys.cdl ? " · CDL" : "") + (sys.lockers ? " · lockers" : "");
+      b.querySelector(".pick-sub").textContent = sys.modes.map((m) => m.label).join(" · ") + (sys.cdl ? " · CDL" : "");
       b.addEventListener("click", () => set({ system: sys.id }));
       $("sys-chips").appendChild(b);
     });
@@ -84,15 +84,12 @@
     });
     $("slope").addEventListener("input", (e) => set({ slope: +e.target.value }));
 
-    // transfer lever
-    ["2H", "4H", "4L"].forEach((r) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.dataset.id = r;
-      b.innerHTML = "<span class=\"lever-led\" aria-hidden=\"true\"></span><span></span>";
-      b.lastChild.textContent = r;
-      b.addEventListener("click", () => set({ range: r }));
-      $("lever").appendChild(b);
+    // camera views
+    document.querySelectorAll("#views button").forEach((b) => {
+      b.addEventListener("click", () => {
+        document.querySelectorAll("#views button").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+        V.focus(b.dataset.view);
+      });
     });
 
     // dash switches
@@ -150,6 +147,31 @@
       icon: "<svg viewBox=\"0 0 32 20\"><path d=\"M10 2l-3 16M22 2l3 16\"/><path d=\"M9 7c2 2 4-2 7 0s5-2 7 0M8 13c2 2 4-2 7 0s5-2 8 0\"/></svg>" }
   ];
 
+  // The transfer lever: one button per position of this system's lever.
+  let leverFor = null;
+  function buildLever(sys) {
+    if (leverFor === sys.id) return;
+    leverFor = sys.id;
+    const lever = $("lever");
+    lever.innerHTML = "";
+    lever.style.gridTemplateColumns = "repeat(" + sys.modes.length + ", 1fr)";
+    sys.modes.forEach((m) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.id = m.id;
+      if (m.low) b.dataset.low = "true";
+      b.innerHTML = "<span class=\"lever-led\" aria-hidden=\"true\"></span><span></span>";
+      b.lastChild.textContent = m.label;
+      b.title = MODE_HINT[m.centre] + (m.low ? ", low range" : "");
+      b.addEventListener("click", () => set({ mode: m.id }));
+      lever.appendChild(b);
+    });
+  }
+  const MODE_HINT = {
+    rear: "Rear-wheel drive only", locked: "Front and rear locked together", open: "Full-time 4WD, open centre diff",
+    torsen: "Full-time 4WD, Torsen centre diff", clutch: "Auto 4WD: the clutch feeds the front as needed"
+  };
+
   function setSurface(w, id) {
     const surfaces = Object.assign({}, state.surfaces, { [w]: id });
     set({ surfaces: surfaces, scenario: null });
@@ -181,10 +203,12 @@
           (wh[spinner].surface === "air" ? " (nothing: it's in the air)." : "."));
       }
     });
-    if (k.centre === "open") {
+    if (k.centre === "open" || k.centre === "torsen") {
       const fs = wh.fl.slip || wh.fr.slip, rs = wh.rl.slip || wh.rr.slip;
-      if (fs !== rs) out.push("The open centre diff holds the " + (fs ? "rear" : "front") + " axle back to what the " + (fs ? "front" : "rear") + " axle can take.");
+      if (fs !== rs) out.push("The " + (k.centre === "torsen" ? "Torsen" : "open") + " centre diff holds the " + (fs ? "rear" : "front") +
+        " axle back to " + (k.centre === "torsen" ? "a few times " : "") + "what the " + (fs ? "front" : "rear") + " axle can take.");
     }
+    if (k.centre === "clutch" && r.clutch === "max") out.push("The 4A clutch is already passing all it can to the front.");
     if (!out.length) out.push("Every driven wheel is already pulling its weight: there isn't enough grip for this slope.");
     return out;
   }
@@ -196,14 +220,14 @@
     const head = { move: "Driving on", spin: "Stuck: wheels spinning", bog: "Stuck: not enough pull" }[r.status];
     let sub;
     if (r.status === "move") {
-      sub = r.state.range === "4L"
+      sub = r.low
         ? "In low range: slow, with the engine's pull multiplied ×" + r.state.lowRatio.toFixed(1) + "."
         : "The drivetrain can put " + pct(r.grip) + " of the weight to the ground and it needs " + pct(r.need) + ".";
     } else if (r.status === "spin") {
       sub = reasons(r).join(" ");
     } else {
       sub = "The tyres could take " + pct(r.grip) + " of the weight, but the engine only pulls " + pct(r.pull) +
-        (r.state.range === "4L" ? " even in low range" : " in high range") + ", and the climb needs " + pct(r.need) + ".";
+        (r.low ? " even in low range" : " in high range") + ", and the climb needs " + pct(r.need) + ".";
     }
     el.innerHTML = "<span class=\"status-icon\" aria-hidden=\"true\">" + icon + "</span>" +
       "<div class=\"status-text\"><p class=\"status-head\"></p><p class=\"status-sub\"></p><div class=\"status-fix\"></div></div>";
@@ -246,7 +270,7 @@
       { id: "need", label: "Needed to keep going", value: r.need, cls: "need" },
       { id: "grip", label: "Grip the drivetrain can use", value: r.grip, cls: r.grip + 1e-9 >= r.need ? "ok" : "short",
         ghost: r.totalGrip, ghostLabel: "all four tyres' grip" },
-      { id: "pull", label: "Engine pull at the wheels" + (r.state.range === "4L" ? " (low range)" : ""), value: r.pull,
+      { id: "pull", label: "Engine pull at the wheels" + (r.low ? " (low range)" : ""), value: r.pull,
         cls: r.pull + 1e-9 >= r.need ? "ok" : "short" }
     ];
     const box = $("meters");
@@ -291,21 +315,18 @@
 
     renderStatus(r);
 
+    buildLever(sys);
     document.querySelectorAll("#lever button").forEach((b) => {
-      const ok = sys.ranges.includes(b.dataset.id);
-      radio(b, b.dataset.id === state.range);
-      b.disabled = !ok;
-      b.title = ok ? "" : "Not on a " + sys.name.toLowerCase();
-      b.classList.toggle("suggest", suggested.has("range-" + b.dataset.id));
+      radio(b, b.dataset.id === state.mode);
+      b.classList.toggle("suggest", suggested.has("mode-" + b.dataset.id));
     });
     document.querySelectorAll("#switches .switch").forEach((b) => {
       const sw = SWITCHES.find((s) => s.id === b.dataset.id);
       let avail = true, why = "";
       if (sw.id === "cdl" && !sys.cdl) {
         avail = false;
-        why = state.system === "part" ? "No centre diff: 4H locks it" : "Not fitted";
+        why = { part: "No centre diff: 4H locks it", ss2: "On the lever: 4HLc / 4LLc", tod: "No diff: 4H clamps the clutch" }[state.system] || "Not fitted";
       }
-      if ((sw.id === "rearLock" || sw.id === "frontLock") && !sys.lockers) { avail = false; why = "Not fitted"; }
       const on = avail && !!state[sw.key];
       b.disabled = !avail;
       b.setAttribute("aria-pressed", on ? "true" : "false");
@@ -314,7 +335,6 @@
     });
     $("lowRatio").value = state.lowRatio;
     $("ratio-out").textContent = "×" + (+state.lowRatio).toFixed(1);
-    $("lowRatio").disabled = !sys.ranges.includes("4L");
     C.WHEELS.forEach((w) => { $("surf-" + w).value = state.surfaces[w]; });
 
     const cautions = $("cautions");
@@ -333,4 +353,7 @@
   build();
   V.init($("view"), cycleSurface);
   update();
+  // a link such as #view-tcase opens zoomed in on that part
+  const hv = /^#view-(\w+)$/.exec(location.hash);
+  if (hv) { const b = document.querySelector("#views button[data-view='" + hv[1] + "']"); if (b) b.click(); }
 })();
