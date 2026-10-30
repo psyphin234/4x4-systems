@@ -42,7 +42,8 @@ window.SYS_DIFFDEMO = (function () {
   function paint(name, state, t) {
     (parts[name] || []).forEach((m) => {
       let c = COL.idle, e = 0x000000, ei = 0;
-      if (state === "active") { c = COL.active; e = COL.active; ei = 0.3 + 1.1 * Math.min(1, t || 0); }
+      // a low glow, so the teeth still show (owner, 2026-10-30: it drowned them out)
+      if (state === "active") { c = COL.active; e = COL.active; ei = 0.05 + 0.25 * Math.min(1, t || 0); }
       else if (state === "passive") { c = COL.passive; e = 0x1b2a4a; ei = 0.4; }
       else if (state === "lock") { c = COL.lock; e = COL.lock; ei = 0.8; }
       else if (state === "slip") { c = COL.slip; e = COL.slip; ei = 0.6 + 0.4 * Math.abs(Math.sin(time * 9)); }
@@ -87,40 +88,66 @@ window.SYS_DIFFDEMO = (function () {
     const dh = new T.Group();
     dh.rotation.z = -Math.PI / 2; // local Y -> +x (the left wheel's side)
     ax.add(dh);
-    // carrier: case, cross pin, spider gears, ring gear (on the left)
+    // Proportions as in a real axle (owner, 2026-10-30: the side gears looked
+    // as if they sat in the ring gear): the spider and side gears are small
+    // and sit inside the carrier case; the ring gear is bolted round the
+    // outside on a flange; bearing hubs stick out of each end. In the
+    // diff's own space (axis = local Y), all within +-0.075 but the hubs.
+    const CR = 0.075, CL = 0.075;          // carrier case radius, half length
+    const G1 = 0.035, G2 = 0.075;          // spider and side gear teeth, along their 45-degree cones
+    const R1 = 0.15, R2 = 0.21;            // ring gear and pinion teeth, along their cones
     const carrier = new T.Group();
-    const caseMat = mat("carrier");
-    caseMat.transparent = true; caseMat.opacity = 0.25; caseMat.depthWrite = false; caseMat.side = T.DoubleSide;
-    carrier.add(new T.Mesh(new T.CylinderGeometry(0.1, 0.1, 0.15, 36, 1, true), caseMat));
+    const caseG = new T.CylinderGeometry(CR, CR, 2 * CL, 40, 1, true);
+    carrier.add(S3.glass(caseG, 0x9fb4d8, 0.16));
+    const steel = new T.MeshStandardMaterial({ color: 0x5a6788, metalness: 0.7, roughness: 0.35 });
+    [1, -1].forEach((s) => {
+      // end walls with the bearing hubs the half shafts run through
+      const wall = new T.Mesh(new T.RingGeometry(0.03, CR, 36), new T.MeshStandardMaterial({ color: 0x5a6788, metalness: 0.6, roughness: 0.4, transparent: true, opacity: 0.35, side: T.DoubleSide, depthWrite: false }));
+      wall.rotation.x = -Math.PI / 2;
+      wall.position.y = s * CL;
+      carrier.add(wall);
+      const hub = new T.Mesh(new T.CylinderGeometry(0.03, 0.033, 0.02, 24, 1, true), steel);
+      hub.position.y = s * (CL + 0.01);
+      carrier.add(hub);
+    });
+    // the locker's dogs on the right-hand hub's end (-local Y): the collar slides onto them
+    for (let i = 0; i < 6; i++) {
+      const b = Math.PI / 6 + (i / 6) * Math.PI * 2; // between the collar's dogs
+      const dog = new T.Mesh(new T.BoxGeometry(0.016, 0.014, 0.016), mat("lockDogs"));
+      dog.position.set(Math.cos(b) * 0.034, -(CL + 0.02 + 0.007), Math.sin(b) * 0.034);
+      carrier.add(dog);
+    }
     const spMat = mat("spider");
-    const pin = new T.Mesh(new T.CylinderGeometry(0.011, 0.011, 0.21, 10), spMat);
+    const pin = new T.Mesh(new T.CylinderGeometry(0.008, 0.008, 2 * CR, 10), spMat);
     pin.rotation.z = Math.PI / 2;
     carrier.add(pin);
     const spiders = [];
     [1, -1].forEach((s) => {
       const h = new T.Group();
       h.rotation.z = -s * Math.PI / 2;
-      const g = S3.coneGear(45, 0.05, 0.095, 12, spMat);
+      const g = S3.coneGear(45, G1, G2, BEVEL.sideTeeth, spMat);
       h.add(g);
       carrier.add(h);
       spiders.push(g);
     });
+    // the ring gear on its flange round the case, on the left
     const ringMat = mat("ring");
     ringMat.side = T.DoubleSide;
     const rh = new T.Group();
-    rh.add(S3.coneGear(BEVEL.ringAngle, 0.13, 0.19, BEVEL.ringTeeth, ringMat));
-    const web = new T.Mesh(new T.RingGeometry(0.1, 0.132, 40), ringMat);
+    rh.add(S3.coneGear(BEVEL.ringAngle, R1, R2, BEVEL.ringTeeth, ringMat));
+    const ra = (BEVEL.ringAngle * Math.PI) / 180;
+    const web = new T.Mesh(new T.RingGeometry(CR, R1 * Math.sin(ra), 48), ringMat);
     web.rotation.x = -Math.PI / 2;
-    web.position.y = 0.05;
+    web.position.y = R1 * Math.cos(ra);
     rh.add(web);
     carrier.add(rh);
     dh.add(carrier);
     // side gears: +local Y = the left wheel's, -local Y = the right wheel's
-    const sideL = S3.coneGear(45, 0.05, 0.095, 12, mat("sideL"));
+    const sideL = S3.coneGear(45, G1, G2, BEVEL.sideTeeth, mat("sideL"));
     dh.add(sideL);
     const hr = new T.Group();
     hr.rotation.x = Math.PI;
-    const sideR = S3.coneGear(45, 0.05, 0.095, 12, mat("sideR"));
+    const sideR = S3.coneGear(45, G1, G2, BEVEL.sideTeeth, mat("sideR"));
     hr.add(sideR);
     dh.add(hr);
 
@@ -128,30 +155,31 @@ window.SYS_DIFFDEMO = (function () {
     const ph = new T.Group();
     ph.rotation.x = Math.PI / 2;
     const pMat = mat("pinion");
-    const pinion = S3.coneGear(BEVEL.pinionAngle, 0.13, 0.19, BEVEL.pinionTeeth, pMat);
+    const pinion = S3.coneGear(BEVEL.pinionAngle, R1, R2, BEVEL.pinionTeeth, pMat);
     const shaft = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, 0.42, 12), pMat);
-    shaft.position.y = 0.19 + 0.21;
+    shaft.position.y = R2 + 0.21;
     pinion.add(shaft);
     const flange = new T.Mesh(new T.CylinderGeometry(0.045, 0.045, 0.02, 20), pMat);
-    flange.position.y = 0.6;
+    flange.position.y = R2 + 0.43;
     pinion.add(flange);
     ph.add(pinion);
     ax.add(ph);
 
-    // LSD clutch packs, between the side gears and the case
+    // LSD clutch packs, between the back of each side gear and the case's end wall
     const lsd = new T.Group();
     const lsdMat = mat("lsd");
     [-1, 1].forEach((s) => {
       for (let i = 0; i < 3; i++) {
-        const disc = S3.along(new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.005, 24), lsdMat), "x");
-        disc.position.x = s * (0.07 + i * 0.007);
+        const disc = S3.along(new T.Mesh(new T.CylinderGeometry(0.045, 0.045, 0.004, 28), lsdMat), "x");
+        disc.position.x = s * (0.058 + i * 0.006);
         lsd.add(disc);
       }
     });
     ax.add(lsd);
-    // the locker's dog collar, on the right half shaft (away from the ring gear)
+    // the locker's dog collar, on the right half shaft (away from the ring gear):
+    // out at -0.175, in at -0.125 where its dogs mesh between the hub's
     const collar = turns("r", S3.along(S3.collarMesh(0.045, mat("lock")), "x"), -1);
-    collar.position.x = -0.17;
+    collar.position.x = -0.175;
     ax.add(collar);
 
     // the housing's tubes (faint), out towards the wheels
@@ -165,7 +193,7 @@ window.SYS_DIFFDEMO = (function () {
 
     // half shafts, full size, from the side gears to the hubs
     [["l", 1], ["r", -1]].forEach(([w, s]) => {
-      const a = 0.06 * S, b = WX - 0.12;
+      const a = 0.05 * S, b = WX - 0.12;
       const shaftM = S3.along(new T.Mesh(new T.CylinderGeometry(0.035, 0.035, b - a, 12), mat("half" + w.toUpperCase())), "x");
       const h = turns(w, shaftM, -1); // along() points local Y at -x: turn it backwards
       h.position.set(s * (a + b) / 2, AY, 0);
@@ -400,12 +428,13 @@ window.SYS_DIFFDEMO = (function () {
     });
     const carry = r.ground > 1e-6 ? "active" : "passive";
     const tc = r.ground / r.need;
-    ["ring", "carrier", "pinion", "spider"].forEach((p) => paint(p, carry, tc));
+    ["ring", "pinion", "spider"].forEach((p) => paint(p, carry, tc));
     // LSD packs: purple when fitted, orange while they slip (one wheel faster than the other)
     const lsdSlip = r.type === "lsd" && r.speed.l !== r.speed.r;
     paint("lsd", lsdSlip ? "heat" : "lsd");
     bits.lsd.visible = r.type === "lsd";
     paint("lock", r.type === "locked" ? "lock" : "idle");
+    paint("lockDogs", r.type === "locked" ? "lock" : "idle");
   }
 
   function frame(dt) {
@@ -439,7 +468,7 @@ window.SYS_DIFFDEMO = (function () {
     bits.sideR.rotation.y = -angle.r;  // faces -x
     bits.pinion.rotation.y = angle.p + BEVEL.pinionPhase;
     // the locker's collar slides in against the carrier when locked
-    const cx = result.type === "locked" ? -0.105 : -0.17;
+    const cx = result.type === "locked" ? -0.125 : -0.175;
     bits.collar.position.x += (cx - bits.collar.position.x) * Math.min(1, dt * 8 || 1);
     // a wheel in the air hangs a little lower on its spring
     ["l", "r"].forEach((w) => {
@@ -559,5 +588,5 @@ window.SYS_DIFFDEMO = (function () {
   function step(dt) { frame(dt); }
 
   // inspect(): the gears, for the meshing check in dd.tmp.html.
-  return { init: init, show: show, step: step, inspect: () => bits };
+  return { init: init, show: show, step: step, inspect: () => ({ bits: bits, sph: sph, target: target }) };
 })();

@@ -66,7 +66,8 @@ window.SYS_DIAGRAM = (function () {
   function paint(name, state, t) {
     (parts[name] || []).forEach((m) => {
       let c = COL.idle, e = 0x000000, ei = 0;
-      if (state === "active") { c = COL.active; e = COL.active; ei = 0.35 + 1.1 * Math.min(1, t || 0); }
+      // lower than at first (owner, 2026-10-30: the glow drowned out the gear teeth)
+      if (state === "active") { c = COL.active; e = COL.active; ei = 0.12 + 0.45 * Math.min(1, t || 0); }
       else if (state === "passive") { c = COL.passive; e = 0x1b2a4a; ei = 0.4; }
       else if (state === "lock") { c = COL.lock; e = COL.lock; ei = 0.8; }
       else if (state === "slip") { c = COL.slip; e = COL.slip; ei = 0.6 + 0.4 * Math.abs(Math.sin(time * 9)); }
