@@ -2,7 +2,7 @@
 
 Static page for the PsyPhin site, started 2026-10-30: an **interactive, animated drivetrain** showing what 2H / 4H / 4L, the centre diff lock (CDL), front and rear lockers, an LSD and traction control each do on slippery ground. Same "deep space" look as the other tools (copied from `../Ropes_Recovery`: favicons, `logo.jpg`, `js/circuit.js`, and its `css/style.css` minus the ropes-only section). This page's own styles are the "4x4 Systems Explained" block at the end of style.css.
 
-**Not live yet.** No repo, no `CNAME`, no psyphin.co.za card. The page carries `noindex` and the amber `.construction` banner. The intended address in the canonical/OG tags is `https://4x4.psyphin.co.za/` (a guess: confirm with the owner before creating the DNS record). Ask before pushing anything live.
+Repo `psyphin234/4x4-systems` (public), GitHub Pages from `main` / root, since 2026-10-30, for the owner to test. **Test address: https://psyphin.co.za/4x4-systems/** (the default project-page address; no `CNAME` yet). **No psyphin.co.za card yet** (owner, 2026-10-30: wants to test it first). The page carries `noindex` and the amber `.construction` banner. The canonical/OG tags point at `https://4x4.psyphin.co.za/` (a guess: confirm with the owner before creating the DNS record and `CNAME`). Ask before pushing; check builds with `gh api repos/psyphin234/4x4-systems/pages/builds/latest`.
 
 ## Layout (owner, 2026-10-30)
 
