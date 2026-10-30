@@ -56,8 +56,6 @@
           <p class="panel-title">Under each wheel</p>
           <p class="hint wheel-hint">Pick the ground under each wheel, here or by clicking it in the picture.</p>
           <div class="wheel-grid" id="wheel-grid"></div>
-          <p class="ctl-label" id="slope-label">The ground is</p>
-          <div class="seg seg--slope" id="slope-seg" role="radiogroup" aria-labelledby="slope-label"></div>
         </div>
       </aside>
 
@@ -71,6 +69,7 @@
             <button type="button" data-view="front" aria-pressed="false">Front diff</button>
             <button type="button" data-view="rear" aria-pressed="false">Rear diff</button>
           </div>
+          <div class="slope-pick" id="slope-seg" role="radiogroup" aria-labelledby="slope-label"><span class="slope-pick-label" id="slope-label">Slope</span></div>
           <p class="view-hint">Drag to turn &middot; scroll to zoom &middot; click the ground under a wheel to change it</p>
         </div>
         <ul class="legend" aria-label="Colour key">

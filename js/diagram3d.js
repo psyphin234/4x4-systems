@@ -40,6 +40,8 @@ window.SYS_DIAGRAM = (function () {
 
   // ---------------------------------------------------------------- state
   let renderer, scene, camera, rig, box, canvas, labelLayer;
+  let world; // the ground and the vehicle together, tilted to the slope (front up)
+  const X_AXIS = new T.Vector3(1, 0, 0);
   let result = null, onWheelClick = null;
   let raf = 0, running = false, visible = true, last = 0, time = 0;
   const parts = {};        // name -> list of materials coloured together
@@ -946,13 +948,13 @@ window.SYS_DIAGRAM = (function () {
       tile.position.set(x < 0 ? -1.2 : 1.2, 0, z < 0 ? -1.5 : 1.5);
       tile.receiveShadow = true;
       tile.userData.wheel = w;
-      scene.add(tile);
+      world.add(tile);
       // the edge of the tile, lit when hovered
       const edge = new T.LineSegments(new T.EdgesGeometry(new T.PlaneGeometry(2.38, 2.98)),
         new T.LineBasicMaterial({ color: 0x4cc9ff, transparent: true, opacity: 0.0 }));
       edge.rotation.x = -Math.PI / 2;
       edge.position.copy(tile.position).setY(0.005);
-      scene.add(edge);
+      world.add(edge);
       // loose rocks, shown on low traction, rolling back under the vehicle
       const rocks = new T.Group();
       for (let i = 0; i < 26; i++) {
@@ -967,13 +969,13 @@ window.SYS_DIAGRAM = (function () {
         rocks.add(m);
       }
       rocks.visible = false;
-      scene.add(rocks);
+      world.add(rocks);
       tiles[w] = { mesh: tile, mat: mat, edge: edge, kind: "tar", rocks: rocks, z0: tile.position.z - 1.5 };
     });
     // a faint floor beyond the tiles
     const grid = new T.GridHelper(14, 28, 0x1d3b6b, 0x0f2142);
     grid.position.y = -0.01;
-    scene.add(grid);
+    world.add(grid);
   }
 
   function setTile(w, kind) {
@@ -1046,7 +1048,7 @@ window.SYS_DIAGRAM = (function () {
     const mat = new T.PointsMaterial({ size: 0.045, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false });
     particles = new T.Points(geo, mat);
     particles.frustumCulled = false;
-    scene.add(particles);
+    world.add(particles);
     for (let i = 0; i < N; i++) flecks.push({ life: 0, p: new T.Vector3(0, -10, 0), v: new T.Vector3(), c: new T.Color() });
   }
 
@@ -1125,8 +1127,15 @@ window.SYS_DIAGRAM = (function () {
       if (cam.t >= 1) cam.goal = null;
     }
     fadeChassis();
-    camera.position.setFromSpherical(cam.sph).add(cam.target);
-    camera.lookAt(cam.target);
+    // the target is a point on the vehicle, so it rides up the slope with it.
+    // Far out the camera stays level, so the slope shows; zoomed in on a part it
+    // tilts with the vehicle (blending in from 3.2 m to 2 m), so the close-ups
+    // look the same on any slope instead of ending up behind a tyre.
+    const aim = cam.target.clone().applyAxisAngle(X_AXIS, world.rotation.x);
+    const ride = Math.min(1, Math.max(0, (3.2 - cam.sph.radius) / 1.2)) * world.rotation.x;
+    camera.position.setFromSpherical(cam.sph).applyAxisAngle(X_AXIS, ride).add(aim);
+    camera.up.set(0, 1, 0).applyAxisAngle(X_AXIS, ride);
+    camera.lookAt(aim);
   }
 
   function setUpOrbit() {
@@ -1472,6 +1481,8 @@ window.SYS_DIAGRAM = (function () {
     stepParticles(dt);
     suspension(dt);
     stepRocks();
+    const tilt = -(result.state.slope * Math.PI) / 180; // uphill: the front (+z) rises
+    world.rotation.x += (tilt - world.rotation.x) * (reduceMotion || !dt ? 1 : Math.min(1, dt * 3));
     rig.position.set(0, 0, 0);
     if (result.status === "bog" && !reduceMotion) rig.position.set((Math.random() - 0.5) * 0.008, (Math.random() - 0.5) * 0.006, 0);
     stepCamera(dt);
@@ -1540,8 +1551,10 @@ window.SYS_DIAGRAM = (function () {
     rim.position.set(4, 3, -4);
     scene.add(rim);
 
+    world = new T.Group();
+    scene.add(world);
     rig = new T.Group();
-    scene.add(rig);
+    world.add(rig);
     buildGround();
     buildChassis();
     buildEngine();
