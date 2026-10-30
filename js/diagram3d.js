@@ -50,7 +50,7 @@ window.SYS_DIAGRAM = (function () {
   const speed = {};        // name -> shown angular speed (eases to target)
   const labels = [];
   const tiles = {};
-  const shown = { v: 0, wheel: { fl: 0, fr: 0, rl: 0, rr: 0 }, collar: {} };
+  const shown = { v: 0, wheel: { fl: 0, fr: 0, rl: 0, rr: 0 }, collar: {}, scale: 1 };
   let groundOffset = 0;
   let chain = null, particles = null, flecks = [];
   let hover = null;
@@ -418,12 +418,13 @@ window.SYS_DIAGRAM = (function () {
 
     // chain: drive sprocket on the main shaft, driven sprocket on the front output
     const chMat = reg("chain", flowMat());
-    const ds = turns("front", along(gear(0.1, 0.035, 22, chMat), "z"));
+    const ds = turns("front", along(gear(0.1, 0.035, 12, chMat), "z"));
     ds.position.set(0, MY, CHAIN_Z);
     tc.add(ds);
-    const fs = turns("front", along(gear(0.1, 0.035, 22, chMat), "z"));
+    const fs = turns("front", along(gear(0.1, 0.035, 12, chMat), "z"));
     fs.position.copy(FOUT);
     tc.add(fs);
+    tcGroups.sprockets = [ds.children[0], fs.children[0]];
     chain = buildChain(chMat);
     tc.add(chain.group);
     const fShaft = turns("front", along(new T.Mesh(new T.CylinderGeometry(0.026, 0.026, 0.44, 10), reg("frontOut", flowMat())), "z"));
@@ -437,16 +438,22 @@ window.SYS_DIAGRAM = (function () {
     tcGroups.cuLabel = label("", new T.Vector3(-0.22, MY + 0.22, CU_Z - 0.04), "tag3d--small");
   }
 
-  // The chain: links running round both sprockets.
+  // The chain: links running round both sprockets, one link per tooth (24
+  // links, 12 teeth: it was 48 and 22 until 2026-10-30, so fine that at speed
+  // they strobed and the chain seemed to run backwards). The wrap radius is
+  // worked out so a link's pitch matches a tooth's, and the links start in the
+  // gaps between the teeth, so they stay there as it turns.
   function buildChain(mat) {
     const g = new T.Group();
-    const A = new T.Vector2(0, MY), B = new T.Vector2(FOUT.x, FOUT.y), r = 0.108;
+    const N = 24, TEETH = 12;
+    const A = new T.Vector2(0, MY), B = new T.Vector2(FOUT.x, FOUT.y);
     const d = new T.Vector2().subVectors(B, A), len = d.length(), u = d.clone().normalize();
     const n = new T.Vector2(-u.y, u.x);
+    const r = (TEETH * len) / (Math.PI * (N - TEETH)); // 2 pi r / TEETH = L / N
     const L = 2 * len + 2 * Math.PI * r;
-    const N = 48;
+    const gap = r * (Math.atan2(n.y, n.x) - Math.PI / TEETH); // puts link 0 in a gap
     const links = [];
-    const geo = new T.BoxGeometry(0.028, 0.012, 0.03);
+    const geo = new T.BoxGeometry(0.04, 0.012, 0.03);
     for (let i = 0; i < N; i++) { const m = new T.Mesh(geo, mat); g.add(m); links.push(m); }
     function at(s) {
       s = ((s % L) + L) % L;
@@ -462,10 +469,11 @@ window.SYS_DIAGRAM = (function () {
     }
     return {
       group: g,
+      links: links,
       radius: r,
       move(offset) {
         for (let i = 0; i < N; i++) {
-          const p = at(offset + (i / N) * L), q = at(offset + (i / N) * L + 0.01);
+          const p = at(offset + gap + (i / N) * L), q = at(offset + gap + (i / N) * L + 0.01);
           links[i].position.set(p.x, p.y, CHAIN_Z);
           links[i].rotation.z = Math.atan2(q.y - p.y, q.x - p.x);
         }
@@ -905,7 +913,7 @@ window.SYS_DIAGRAM = (function () {
   const susp = { fl: 0, fr: 0, rl: 0, rr: 0 };
   let travel = 0;
   function suspension(dt) {
-    travel += shown.v * dt;
+    travel += shown.v * shown.scale * dt;
     C.WHEELS.forEach((w, i) => {
       const kind = tiles[w].kind;
       let goal = 0;
@@ -1151,11 +1159,16 @@ window.SYS_DIAGRAM = (function () {
     sp.input = input;
     sp.lrCarrier = input / LR_RATIO;
     sp.lrPlanetRel = -(input - sp.lrCarrier) * (LR.sun / LR.planet);
-    // keep the fastest part slow enough to see, scaling everything together
+    // Keep the fastest shaft slow enough that teeth don't strobe (at most about
+    // 17 teeth a second on a 12-tooth sprocket, 14 on the pinion), slowing
+    // everything together: wheels and ground too, so nothing slides. Until
+    // 2026-10-30 the cap was 26 rad/s and left out the wheels; the owner saw the
+    // chain and gears seem to run backwards.
     let max = 0;
     Object.keys(sp).forEach((n) => { max = Math.max(max, Math.abs(sp[n])); });
-    const scale = max > 26 ? 26 / max : 1;
-    Object.keys(sp).forEach((n) => { if (!/^wheel-/.test(n)) sp[n] *= scale; });
+    const scale = max > 9 ? 9 / max : 1;
+    Object.keys(sp).forEach((n) => { sp[n] *= scale; });
+    shown.scale = scale;
     return sp;
   }
 
@@ -1369,7 +1382,7 @@ window.SYS_DIAGRAM = (function () {
     const sp = stepSpeeds(dt);
     applyRotation(sp, dt);
     paintAll(dt);
-    groundOffset -= (shown.v * dt) / 3.0; // the ground runs back as the vehicle drives forward (+z)
+    groundOffset -= (shown.v * shown.scale * dt) / 3.0; // the ground runs back as the vehicle drives forward (+z)
     C.WHEELS.forEach((w) => { if (tiles[w].mat.map) tiles[w].mat.map.offset.y = groundOffset; });
     if (!reduceMotion) C.WHEELS.forEach((w) => { if (wheelState(w) === "spin" && shown.wheel[w] > 6) emit(w, dt); });
     stepParticles(dt);
@@ -1488,5 +1501,5 @@ window.SYS_DIAGRAM = (function () {
   function step(dt) { if (cam.goal) { cam.t = 1; stepCamera(0); } frame(dt); }
 
   // inspect(): the axle diffs, for the meshing check in dd.tmp.html.
-  return { init: init, show: show, focus: focus, step: step, inspect: () => ({ axles: axleBits, cd: tcGroups.cd }) };
+  return { init: init, show: show, focus: focus, step: step, inspect: () => ({ axles: axleBits, cd: tcGroups.cd, chain: chain.links, sprockets: tcGroups.sprockets }) };
 })();
