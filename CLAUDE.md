@@ -8,7 +8,7 @@ Repo `psyphin234/4x4-systems` (public), GitHub Pages from `main` / root, since 2
 
 ## Layout (owner, 2026-10-30)
 
-**PC first**: the animation sits in the **centre** with the controls around it: the 4x4 system and "Under each wheel" (High / Low / None per wheel, laid out like the wheels, plus the slope) on the left, the dash switches (transfer lever, CDL, rear/front locker, traction control, low range ratio) and the cautions on the right, the status above and the colour key below (the meters under it were removed, owner, 2026-10-30). Under 1100 px the columns stack (the picture first); phones work but aren't the target. The header is the compact `.brand-bar` (no hologram), so the bench shows near the top of the page.
+**PC first**: the animation sits in the **centre** with the controls around it: the 4x4 system and "Under each wheel" (High / Low / Very low / None per wheel, laid out like the wheels, plus the slope) on the left, the dash switches (transfer lever, CDL, rear/front locker, traction control, low range ratio) and the cautions on the right, the status above and the colour key below (the meters under it were removed, owner, 2026-10-30). Under 1100 px the columns stack (the picture first); phones work but aren't the target. The header is the compact `.brand-bar` (no hologram), so the bench shows near the top of the page.
 
 ## The systems and the ground (owner, 2026-10-30)
 
@@ -18,7 +18,7 @@ Four systems, each with its own lever positions (`systems` in data.js; `mode.cen
 - **Hybrid multi-mode, mechanical centre diff (like Super Select II)**: 2H / 4H / 4HLc / 4LLc; open bevel centre diff, locked in the Lc modes (no separate CDL switch).
 - **Hybrid multi-mode, active wet clutch (TOD)**: 2H / 4A / 4H / 4L; in 4A the rear drives and the clutch feeds the front up to its limit; 4H/4L clamp it.
 
-**The ground is kept simple**: high traction (tar texture with lane lines), low traction (brown, a bit rocky: stony texture plus loose 3D rocks rolling back under the vehicle), no traction (empty space: the tile drops into a lit pit). **No "The ground" presets on the page** (owner, 2026-10-30: "Under each wheel" is all it needs); `scenarios` in data.js stay as the starting state and the tests' set-ups. **Suspension**: on low traction each wheel rides up and down over the rocks as it drives (and chatters when spinning); a wheel with no traction hangs 7 cm down on its spring; the beam axle tilts between its two wheels and the coil springs squash and stretch (`suspension()`).
+**The ground is kept simple**: high traction (tar texture with lane lines), low traction (brown, a bit rocky: stony texture plus loose 3D rocks rolling back under the vehicle), very low traction (ice: pale blue, glossy, cracked; grip 0.10; added 2026-10-30), no traction (empty space: the tile drops into a lit pit). **No "The ground" presets on the page** (owner, 2026-10-30: "Under each wheel" is all it needs); `scenarios` in data.js stay as the starting state and the tests' set-ups. **Suspension**: on low traction each wheel rides up and down over the rocks as it drives (and chatters when spinning); a wheel with no traction hangs 7 cm down on its spring; the beam axle tilts between its two wheels and the coil springs squash and stretch (`suspension()`).
 
 ## The 3D view (`js/diagram3d.js`, three.js r149)
 
@@ -32,7 +32,9 @@ What's drawn: a bare rolling chassis, kept light (two see-through rails, a cross
 
 **Mechanics, as drawn** (rebuilt 2026-10-30 after the owner said the gears were wrong): bevel gears are real cones meeting at one apex (`coneGear`): spider and side gears 45 + 45 degrees, ring gear 76 (teeth on its face) and pinion 14 (4:1). The front ring gear is on the left and the rear one on the right, so both props turn the same way. Chain sprocket free on the main shaft. Every speed is worked back from the wheels through these ratios (`stepSpeeds`), so meshing teeth move together. In 2H the front driveline stands still (free-wheeling hubs). **Spin goes on an inner object, orientation on its holder** (`turns()`): with both on one object three.js turns it about the parent's axis (Euler XYZ), which made the half shafts swing round like blades. `film.tmp.html?s=<state>&v=<view>&n=&dt=` renders a filmstrip of frames for checking motion headless (`V.step(dt)`).
 
-Camera: drag to orbit, scroll to zoom, buttons for Whole drivetrain / Transfer case / Front diff / Rear diff (views look in from the side, under the frame; the frame, springs and shocks fade when zoomed in). `#view-tcase`, `#view-front`, `#view-rear` in the URL open zoomed in. Labels are HTML tags projected onto the parts; the small part labels show only when zoomed in.
+**Engine and gearbox** (owner, 2026-10-30: less block-shaped): an inline-four with a tapered see-through block and head, pistons and rods driven by the crank (`moveEngine()`, firing order 1-4 / 2-3 pairs), a rounded rocker cover with ribs, sump, intake plenum and runners on the left, exhaust manifold and down pipe on the right, pulleys and belt at the front; the gearbox is a lathe-turned bellhousing and case with ribs and a gear lever. The crank sits on the gearbox's axis (main shaft height).
+
+Camera: drag to orbit, scroll to zoom, buttons for Whole drivetrain / Engine & gearbox / Transfer case / Front diff / Rear diff (views look in from the side, under the frame; the frame, springs and shocks fade when zoomed in). `#view-tcase`, `#view-front`, `#view-rear` in the URL open zoomed in. Labels are HTML tags projected onto the parts; the small part labels show only when zoomed in.
 
 ## Figures are illustrative
 

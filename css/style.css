@@ -3369,3 +3369,4 @@ select:focus {
 .ground--tar .ground-swatch { background: linear-gradient(90deg, transparent 44%, #e8e4d6 44% 56%, transparent 56%) center / 100% 60% no-repeat, #2a2f3b; }
 .ground--mud .ground-swatch { background: radial-gradient(circle at 30% 35%, #a08a70 0 2px, transparent 3px), radial-gradient(circle at 70% 65%, #8a7660 0 2.5px, transparent 3.5px), radial-gradient(circle at 65% 25%, #7a6550 0 1.5px, transparent 2.5px), #5a3f26; }
 .ground--air .ground-swatch { background: #03050c; border: 1px dashed rgba(76, 201, 255, 0.7); }
+.ground--ice .ground-swatch { background: linear-gradient(135deg, transparent 45%, rgba(255,255,255,0.9) 46% 52%, transparent 53%), linear-gradient(160deg, #d6ecf8, #9fc6e0); }

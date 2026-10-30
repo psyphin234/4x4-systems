@@ -245,30 +245,163 @@ window.SYS_DIAGRAM = (function () {
   }
 
   // ---------------------------------------------------------------- engine, gearbox
+  // A box with rounded edges, centred on the origin.
+  function roundedBox(w, h, d, r) {
+    const b = r * 0.6;
+    const W = w - 2 * b, H = h - 2 * b, x = -W / 2, y = -H / 2, c = Math.min(r, W / 2, H / 2);
+    const s = new T.Shape();
+    s.moveTo(x + c, y);
+    s.lineTo(x + W - c, y); s.quadraticCurveTo(x + W, y, x + W, y + c);
+    s.lineTo(x + W, y + H - c); s.quadraticCurveTo(x + W, y + H, x + W - c, y + H);
+    s.lineTo(x + c, y + H); s.quadraticCurveTo(x, y + H, x, y + H - c);
+    s.lineTo(x, y + c); s.quadraticCurveTo(x, y, x + c, y);
+    const geo = new T.ExtrudeGeometry(s, { depth: d - 2 * b, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 3, curveSegments: 6 });
+    geo.translate(0, 0, -(d - 2 * b) / 2);
+    return geo;
+  }
+
+  // A shape's outline extruded along z and centred, for the block and the sump.
+  function prism(points, length, bevel) {
+    const s = new T.Shape();
+    points.forEach((p, i) => (i ? s.lineTo(p[0], p[1]) : s.moveTo(p[0], p[1])));
+    s.closePath();
+    const b = bevel || 0.012;
+    const geo = new T.ExtrudeGeometry(s, { depth: length - 2 * b, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 2 });
+    geo.translate(0, 0, -(length - 2 * b) / 2);
+    return geo;
+  }
+
+  // An inline-four: see-through block and head with the pistons, rods and
+  // crank moving inside; rocker cover, sump, intake on the left, exhaust on
+  // the right, pulleys and belt at the front. Origin = the crank's axis, in
+  // line with the gearbox.
+  const ENGINE_Z = 0.75;
+  const CRANK_R = 0.035, ROD_L = 0.15;
+  const CYL_Z = [0.27, 0.09, -0.09, -0.27], CYL_PHASE = [0, Math.PI, Math.PI, 0];
+  const engineBits = { pistons: [], rods: [] };
   function buildEngine() {
     const eng = new T.Group();
-    eng.add(glass(new T.BoxGeometry(0.62, 0.52, 0.86), 0x4cc9ff, 0.16));
-    const coreMat = reg("engine", flowMat());
-    for (let i = 0; i < 4; i++) {
-      const cyl = new T.Mesh(new T.CylinderGeometry(0.075, 0.075, 0.3, 16), coreMat);
-      cyl.position.set(0, 0.04, -0.3 + i * 0.2);
-      eng.add(cyl);
-    }
-    const crank = turns("input", along(new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.9, 10), coreMat), "z"));
-    crank.position.y = -0.18;
-    eng.add(crank);
-    eng.position.set(0, 0.88, 0.75);
+    eng.position.set(0, MY, ENGINE_Z);
     rig.add(eng);
-    label("ENGINE", new T.Vector3(0, 1.25, 0.75));
+    const coreMat = reg("engine", flowMat());
+    const metal = (c, o) => new T.MeshStandardMaterial(Object.assign({ color: c, metalness: 0.7, roughness: 0.35 }, o || {}));
 
-    const gb = glass(new T.CylinderGeometry(0.2, 0.15, 0.48, 20), 0x4cc9ff, 0.12);
-    along(gb, "z");
-    gb.position.set(0, MY, 0.08);
+    // block: wider at the deck than at the skirt
+    eng.add(glass(prism([[-0.13, -0.05], [0.13, -0.05], [0.17, 0.27], [-0.17, 0.27]], 0.76), 0x4cc9ff, 0.14));
+    // cylinder head and rocker cover
+    const head = glass(roundedBox(0.36, 0.08, 0.78, 0.02), 0x4cc9ff, 0.14);
+    head.position.y = 0.31;
+    eng.add(head);
+    const cover = new T.Mesh(roundedBox(0.26, 0.06, 0.7, 0.028), metal(0x1d2742, { emissive: 0x0b3a66, emissiveIntensity: 0.5 }));
+    cover.position.y = 0.38;
+    cover.castShadow = true;
+    eng.add(cover);
+    for (let i = 0; i < 5; i++) { // ribs on the cover
+      const rib = new T.Mesh(new T.BoxGeometry(0.2, 0.012, 0.012), metal(0x4cc9ff, { emissive: 0x4cc9ff, emissiveIntensity: 0.35 }));
+      rib.position.set(0, 0.413, -0.24 + i * 0.12);
+      eng.add(rib);
+    }
+    const cap = new T.Mesh(new T.CylinderGeometry(0.025, 0.025, 0.025, 16), metal(0xffc857));
+    cap.position.set(0.06, 0.42, 0.2);
+    eng.add(cap);
+    // sump
+    const pan = new T.Mesh(prism([[-0.13, -0.05], [0.13, -0.05], [0.1, -0.17], [-0.1, -0.17]], 0.6, 0.01), metal(0x3b4560, { transparent: true, opacity: 0.75 }));
+    pan.position.z = 0.04;
+    eng.add(pan);
+
+    // crank, rods and pistons
+    const crank = new T.Group();
+    crank.add(along(new T.Mesh(new T.CylinderGeometry(0.022, 0.022, 0.86, 12), coreMat), "z"));
+    CYL_Z.forEach((z, i) => {
+      const web = new T.Mesh(new T.BoxGeometry(0.03, CRANK_R + 0.04, 0.025), coreMat);
+      web.position.set(CRANK_R * Math.sin(CYL_PHASE[i]) / 2, CRANK_R * Math.cos(CYL_PHASE[i]) / 2, z);
+      web.rotation.z = -CYL_PHASE[i];
+      crank.add(web);
+      const rod = new T.Mesh(new T.CylinderGeometry(0.011, 0.011, ROD_L, 8), coreMat);
+      eng.add(rod);
+      engineBits.rods.push(rod);
+      const piston = new T.Mesh(new T.CylinderGeometry(0.062, 0.062, 0.07, 24), coreMat);
+      eng.add(piston);
+      engineBits.pistons.push(piston);
+    });
+    eng.add(crank);
+    engineBits.crank = crank;
+
+    // intake: plenum and four runners on the left
+    const intakeMat = metal(0x2c3448);
+    const plenum = new T.Mesh(roundedBox(0.08, 0.09, 0.52, 0.03), intakeMat);
+    plenum.position.set(-0.28, 0.27, 0);
+    eng.add(plenum);
+    CYL_Z.forEach((z) => {
+      const run = along(new T.Mesh(new T.CylinderGeometry(0.022, 0.022, 0.1, 10), intakeMat), "x");
+      run.position.set(-0.21, 0.3, z);
+      eng.add(run);
+    });
+    const throttle = along(new T.Mesh(new T.CylinderGeometry(0.035, 0.035, 0.06, 16), intakeMat), "z");
+    throttle.position.set(-0.28, 0.27, 0.29);
+    eng.add(throttle);
+    // exhaust: four pipes from the head on the right into one down pipe
+    const exMat = metal(0x9a7058, { roughness: 0.45 });
+    CYL_Z.forEach((z) => {
+      const curve = new T.QuadraticBezierCurve3(new T.Vector3(0.18, 0.3, z), new T.Vector3(0.27, 0.3, z), new T.Vector3(0.25, 0.1, z * 0.4 - 0.12));
+      eng.add(new T.Mesh(new T.TubeGeometry(curve, 16, 0.02, 8), exMat));
+    });
+    const down = new T.Mesh(new T.TubeGeometry(new T.QuadraticBezierCurve3(new T.Vector3(0.25, 0.1, -0.12), new T.Vector3(0.3, -0.04, -0.3), new T.Vector3(0.32, -0.08, -0.55)), 16, 0.03, 10), exMat);
+    eng.add(down);
+
+    // front: timing cover, crank pulley, water pump and alternator, belt
+    const tcov = glass(roundedBox(0.28, 0.36, 0.04, 0.03), 0x4cc9ff, 0.12);
+    tcov.position.set(0, 0.13, 0.405);
+    eng.add(tcov);
+    const pulleys = [[0, 0, 0.075], [0, 0.22, 0.045], [0.16, 0.24, 0.04]];
+    pulleys.forEach(([x, y, r], i) => {
+      const p = turns("input", along(new T.Mesh(new T.CylinderGeometry(r, r, 0.03, 24), i ? rimMat : coreMat), "z"));
+      p.position.set(x, y, 0.445);
+      eng.add(p);
+    });
+    const belt = new T.CatmullRomCurve3([
+      new T.Vector3(0, -0.08, 0.445), new T.Vector3(0.075, 0, 0.445), new T.Vector3(0.2, 0.22, 0.445),
+      new T.Vector3(0.16, 0.285, 0.445), new T.Vector3(0, 0.27, 0.445), new T.Vector3(-0.05, 0.2, 0.445), new T.Vector3(-0.078, 0, 0.445)
+    ], true);
+    eng.add(new T.Mesh(new T.TubeGeometry(belt, 60, 0.008, 6, true), metal(0x111318, { roughness: 0.8, metalness: 0.1 })));
+    label("ENGINE", new T.Vector3(0, MY + 0.55, ENGINE_Z));
+
+    // gearbox: a cast bellhousing tapering to the main case and tail
+    const prof = [[0.05, 0], [0.205, 0], [0.215, 0.03], [0.2, 0.12], [0.15, 0.19], [0.14, 0.3], [0.12, 0.38], [0.08, 0.42], [0.06, 0.48]]
+      .map(([r, y]) => new T.Vector2(r, y));
+    const gb = glass(new T.LatheGeometry(prof, 36), 0x4cc9ff, 0.12);
+    gb.rotation.x = -Math.PI / 2; // the lathe's axis (Y) runs back along -z
+    gb.position.set(0, MY, ENGINE_Z - 0.43);
     rig.add(gb);
-    const gbShaft = turns("input", along(new T.Mesh(new T.CylinderGeometry(0.026, 0.026, 0.6, 10), reg("input", flowMat())), "z"));
-    gbShaft.position.set(0, MY, 0.05);
+    [0.22, 0.27, 0.33].forEach((y) => { // ribs on the case
+      const rib = new T.Mesh(new T.TorusGeometry(0.145 - (y - 0.22) * 0.25, 0.006, 6, 36), metal(0x4cc9ff, { emissive: 0x4cc9ff, emissiveIntensity: 0.3, transparent: true, opacity: 0.6 }));
+      rib.position.set(0, MY, ENGINE_Z - 0.43 - y);
+      rig.add(rib);
+    });
+    const tower = new T.Mesh(new T.CylinderGeometry(0.03, 0.045, 0.12, 16), metal(0x2c3448));
+    tower.position.set(0, MY + 0.19, ENGINE_Z - 0.43 - 0.3);
+    rig.add(tower);
+    const lever = new T.Mesh(new T.CylinderGeometry(0.008, 0.008, 0.16, 8), metal(0x8d99b5));
+    lever.position.set(0, MY + 0.32, ENGINE_Z - 0.43 - 0.3);
+    rig.add(lever);
+    const gbShaft = turns("input", along(new T.Mesh(new T.CylinderGeometry(0.026, 0.026, 0.5, 10), reg("input", flowMat())), "z"));
+    gbShaft.position.set(0, MY, ENGINE_Z - 0.43 - 0.22);
     rig.add(gbShaft);
-    label("GEARBOX", new T.Vector3(0, 0.95, 0.1), "tag3d--small");
+    label("GEARBOX", new T.Vector3(0, MY + 0.42, ENGINE_Z - 0.75), "tag3d--small");
+  }
+
+  // Pistons and rods follow the crank: an inline-four, pistons 1 and 4 together.
+  function moveEngine(crankAngle) {
+    engineBits.crank.rotation.z = -crankAngle;
+    CYL_Z.forEach((z, i) => {
+      const th = crankAngle + CYL_PHASE[i];
+      const px = CRANK_R * Math.sin(th), py = CRANK_R * Math.cos(th);
+      const pinY = py + Math.sqrt(ROD_L * ROD_L - px * px);
+      const rod = engineBits.rods[i];
+      rod.position.set(px / 2, (py + pinY) / 2, z);
+      rod.rotation.z = Math.atan2(px, pinY - py);
+      engineBits.pistons[i].position.set(0, pinY + 0.02, z);
+    });
   }
 
   // ---------------------------------------------------------------- transfer case
@@ -768,6 +901,23 @@ window.SYS_DIAGRAM = (function () {
         g.fillStyle = "rgba(255, 245, 225, 0.25)";
         g.beginPath(); g.ellipse(x - rx * 0.3, y - ry * 0.3, rx * 0.4, ry * 0.35, 0, 0, Math.PI * 2); g.fill();
       }
+    } else if (kind === "ice") {
+      // very low traction: pale blue ice, frosty patches, cracks
+      const grd = g.createLinearGradient(0, 0, 256, 512);
+      grd.addColorStop(0, "#cfe6f5"); grd.addColorStop(0.5, "#a9cde6"); grd.addColorStop(1, "#c4dff0");
+      g.fillStyle = grd; g.fillRect(0, 0, 256, 512);
+      for (let i = 0; i < 30; i++) {
+        g.fillStyle = "rgba(255, 255, 255, " + (0.15 + rnd() * 0.3) + ")";
+        g.beginPath(); g.ellipse(rnd() * 256, rnd() * 512, 10 + rnd() * 30, 4 + rnd() * 12, rnd() * 3, 0, Math.PI * 2); g.fill();
+      }
+      for (let i = 0; i < 22; i++) {
+        let x = rnd() * 256, y = rnd() * 512;
+        g.strokeStyle = i % 3 ? "rgba(255, 255, 255, 0.7)" : "rgba(70, 110, 140, 0.45)";
+        g.lineWidth = 0.8 + rnd();
+        g.beginPath(); g.moveTo(x, y);
+        for (let k = 0; k < 5; k++) { x += (rnd() - 0.5) * 50; y += (rnd() - 0.5) * 50; g.lineTo(x, y); }
+        g.stroke();
+      }
     } else {
       g.fillStyle = "#03050c"; g.fillRect(0, 0, 256, 512);
       g.strokeStyle = "rgba(76, 201, 255, 0.35)"; g.lineWidth = 2;
@@ -787,7 +937,7 @@ window.SYS_DIAGRAM = (function () {
   let seed01 = 3;
   const rnd01 = () => (seed01 = (seed01 * 16807) % 2147483647) / 2147483647;
   function buildGround() {
-    ["tar", "mud", "air"].forEach((k) => { TEX[k] = texture(k); });
+    ["tar", "mud", "ice", "air"].forEach((k) => { TEX[k] = texture(k); });
     C.WHEELS.forEach((w) => {
       const [x, z] = WHEEL_POS[w];
       const mat = new T.MeshStandardMaterial({ map: TEX.tar, roughness: 0.9, metalness: 0.0 });
@@ -832,7 +982,8 @@ window.SYS_DIAGRAM = (function () {
     t.kind = kind;
     t.mat.map = TEX[kind].clone();
     t.mat.map.needsUpdate = true;
-    t.mat.roughness = kind === "mud" ? 0.55 : 0.9;
+    t.mat.roughness = kind === "ice" ? 0.12 : kind === "mud" ? 0.55 : 0.9; // ice is glossy
+    t.mat.metalness = kind === "ice" ? 0.15 : 0;
     t.mat.emissive = new T.Color(kind === "air" ? 0x0a2a55 : 0x000000);
     t.mat.emissiveIntensity = kind === "air" ? 0.4 : 0;
     // a wheel in the air: the tile drops away into a pit, so the tyre hangs free
@@ -910,7 +1061,7 @@ window.SYS_DIAGRAM = (function () {
       f.life = 0.6 + Math.random() * 0.5;
       f.p.set(x + (Math.random() - 0.5) * 0.25, 0.04, z - R * 0.6);
       f.v.set((Math.random() - 0.5) * 0.8, 0.8 + Math.random() * 1.6, -(1.2 + Math.random() * 2.2));
-      f.c.setHex(kind === "mud" ? (Math.random() < 0.5 ? 0x7a5532 : 0x5a3f26) : 0x9aa3b6);
+      f.c.setHex(kind === "mud" ? (Math.random() < 0.5 ? 0x7a5532 : 0x5a3f26) : kind === "ice" ? 0xeaf6ff : 0x9aa3b6);
     }
   }
 
@@ -935,6 +1086,7 @@ window.SYS_DIAGRAM = (function () {
   // ---------------------------------------------------------------- camera
   const VIEWS = {
     all:   { target: [0.05, 0.35, -0.1],    pos: [-4.3, 3.7, 2.7] },
+    engine: { target: [0, MY + 0.12, 0.55], pos: [-1.85, 1.35, 0.3] },
     tcase: { target: [0.1, MY - 0.08, -0.42], pos: [-1.35, 0.72, 0.05] },
     front: { target: [FD.x, AY, FZ],        pos: [1.1, 0.74, 0.62] },   // from the right: the front ring gear is on the left
     rear:  { target: [RD.x, AY, RZ],        pos: [-0.9, 0.74, -0.78] }
@@ -1125,6 +1277,7 @@ window.SYS_DIAGRAM = (function () {
       d.minus.rotation.y = -(angle["side-" + l] || 0);   // left one faces -x
       b.pin.rotation.y = add(ax + "Pin", sp[ax + "Pinion"]);
     });
+    moveEngine((angle.input || 0) * 1.5);
     // low range
     const lr = tcGroups.lr;
     lr.sun.rotation.y = angle.input || 0;

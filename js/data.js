@@ -7,13 +7,15 @@
    Forces are fractions of the vehicle's weight: 0.25 = a pull of a quarter of
    its weight. */
 window.SYS_DATA = {
-  // What each wheel can sit on (owner, 2026-10-30: keep it to three).
+  // What each wheel can sit on (owner, 2026-10-30: high, low, very low (ice, added
+  // the same day) and none).
   // grip = friction coefficient under that tyre; roll = rolling resistance (the
   // push needed to keep rolling on the flat). Both illustrative. "air" carries
   // no load, so it has no grip at all.
   surfaces: [
     { id: "tar", name: "High traction", label: "High", short: "Tar", grip: 0.80, roll: 0.015, color: "#3a4256", fleck: "#9aa3b6" },
     { id: "mud", name: "Low traction",  label: "Low", short: "Loose rock and mud", grip: 0.30, roll: 0.10, color: "#5a3f26", fleck: "#8a6541" },
+    { id: "ice", name: "Very low traction", label: "Very low", short: "Ice", grip: 0.10, roll: 0.02, color: "#b9d6ea", fleck: "#eaf6ff" },
     { id: "air", name: "No traction",   label: "None", short: "In the air", grip: 0, roll: 0, color: "#05070f", fleck: "#05070f" }
   ],
 
