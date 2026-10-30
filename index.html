@@ -29,6 +29,7 @@
       <nav class="nav" aria-label="Site">
         <a href="#bench" aria-current="page">Drivetrain</a>
         <a href="#setups">How each one works</a>
+        <a href="#diff-demo">Inside a diff</a>
       </nav>
     </div>
     <div class="brand-inner">
@@ -145,6 +146,44 @@
       </div>
     </section>
 
+    <!-- Inside a diff: one axle on its own (owner, 2026-10-30) -->
+    <section class="diff-demo" id="diff-demo" aria-labelledby="dd-title">
+      <h2 id="dd-title" class="setups-title">Inside a diff: where the torque goes</h2>
+      <p class="dd-intro">One axle on its own. Pick the kind of diff, then put a wheel on ice or lift it into the air, and watch how the torque and the turning are shared between the two wheels.</p>
+      <div class="bench bench--diff">
+        <aside class="side">
+          <div class="panel">
+            <p class="panel-title" id="dd-type-label">The diff</p>
+            <div class="seg seg--dd" id="dd-types" role="radiogroup" aria-labelledby="dd-type-label"></div>
+            <p class="hint dd-blurb" id="dd-blurb"></p>
+          </div>
+        </aside>
+
+        <div class="centre">
+          <div class="status" id="dd-status" role="status" aria-live="polite"></div>
+          <div class="view-box">
+            <canvas id="dd-view" aria-label="3D view of one axle's diff between two wheels, animated: drag to turn it, scroll to zoom" role="img"></canvas>
+            <p class="view-hint">Drag to turn &middot; scroll to zoom</p>
+          </div>
+          <div class="dd-bars" id="dd-bars"></div>
+        </div>
+
+        <aside class="side">
+          <div class="panel">
+            <p class="panel-title">Under each wheel</p>
+            <div class="dd-wheels" id="dd-wheels"></div>
+          </div>
+          <ul class="legend legend--side" aria-label="Colour key">
+            <li><span class="key key--flow"></span>Torque going to the ground (thicker = more)</li>
+            <li><span class="key key--spin"></span>Spinning: the torque is lost</li>
+            <li><span class="key key--passive"></span>Turning, no torque</li>
+            <li><span class="key key--lsd"></span>LSD clutch packs <small>(orange: slipping)</small></li>
+            <li><span class="key key--lock"></span>Locker engaged</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
     <section class="explainers" aria-label="Explainers">
       <details class="explainer" id="explain-model">
         <summary>How the picture works it out</summary>
@@ -177,7 +216,9 @@
   <script src="js/data.js"></script>
   <script src="js/calc.js"></script>
   <script src="js/vendor/three.min.js"></script>
+  <script src="js/shapes3d.js"></script>
   <script src="js/diagram3d.js"></script>
+  <script src="js/diffdemo.js"></script>
   <script src="js/app.js"></script>
   <script src="js/circuit.js"></script>
 

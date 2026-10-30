@@ -187,6 +187,25 @@
     eq(D.lowRange.default >= D.lowRange.min && D.defaults.lowRatio >= D.lowRange.min, true, "default ratio in range");
   });
 
+  test("diff demo: open, LSD and locked with a wheel on ice or in the air", () => {
+    const dd = (type, l, r) => C.diffDemo(type, l, r);
+    eq(dd("open", "tar", "tar").moves, true, "both gripping: open drives");
+    near(dd("open", "tar", "tar").torqueShare.l, 0.5, 1e-9, "both gripping: 50:50");
+    const oi = dd("open", "tar", "ice");
+    eq(oi.moves, false, "open, right on ice: stuck");
+    near(oi.torqueShare.l, 0.5, 1e-9, "open: always the same torque each side");
+    eq(oi.speedShare.r, 1, "open: the slipping wheel takes all the turning");
+    const li = dd("lsd", "tar", "ice");
+    eq(li.moves, true, "LSD, right on ice: drives");
+    eq(li.torqueShare.l > 0.7, true, "LSD: most of the torque to the wheel with grip");
+    eq(dd("lsd", "tar", "air").moves, false, "LSD, right in the air: stuck");
+    near(dd("lsd", "tar", "air").torqueShare.l, 1, 1e-9, "LSD, right in the air: what torque there is goes left");
+    const la = dd("locked", "tar", "air");
+    eq(la.moves, true, "locked, right in the air: drives");
+    near(la.speedShare.l, 0.5, 1e-9, "locked: both turn together");
+    eq(dd("locked", "ice", "ice").moves, false, "both on ice: a locker can't add grip");
+  });
+
   test("suggest finds the fewest presses", () => {
     const one = C.suggest(st("mud"));
     eq(one.every((o) => o.length === 1), true, "single presses for mud");

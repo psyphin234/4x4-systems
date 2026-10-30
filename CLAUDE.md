@@ -38,6 +38,18 @@ What's drawn: a bare rolling chassis, kept light (two see-through rails, a cross
 
 Camera: drag to orbit, scroll to zoom, buttons for Whole drivetrain / Transfer case / Front diff / Rear diff (an Engine & gearbox button was added and removed again, owner, 2026-10-30) (views look in from the side, under the frame; the frame, springs and shocks fade when zoomed in). `#view-tcase`, `#view-front`, `#view-rear` in the URL open zoomed in. Labels are HTML tags projected onto the parts; the small part labels show only when zoomed in.
 
+## Inside a diff: the diff demo (owner, 2026-10-30)
+
+A second, separate 3D view under "How each one works" (`#diff-demo`, "Inside a diff" in the nav): one axle on its own, the diff drawn 2.2x life size in a see-through housing (ring and pinion, carrier, spider and side gears, LSD clutch packs, the locker's dog collar) with half shafts out to two wheels, each on its own ground. Controls: Open / LSD / Locked on the left; Grip / Slippery (ice) / In the air for each wheel on the right (the ground drops away under a wheel in the air). The owner asked for buttons to lift a wheel or take its grip away, the **% of torque** going to each wheel, and colour and arrows. Shown: a curved torque arrow round each half shaft and a push arrow on the ground beside each tyre (thicker and longer with more torque; cyan gripping, red spinning), an arrow round the prop "from the engine", tags on the wheels (torque %, speed %, pushing / spinning / still / in the air), and under the picture split bars for torque and speed (left against right) and how much of the push needed reaches the ground. It opens on an open diff with the right wheel in the air; not saved.
+
+**Torque vs speed:** the owner's brief said the torque goes to the wheel with the least resistance. With an open diff it's the **turning** that goes there; the torque stays 50:50 (of what the slipping wheel can hold), and the page says so in the status line. An LSD or locker moves the torque to the wheel **with** grip.
+
+The model is `diffDemo(type, left, right)` in calc.js (it reuses `capacity()` and `distribute()`; figures in `diffDemo` in data.js: each wheel carries 0.25 of the weight, the axle needs 0.12, chosen so that open is stuck with a wheel on ice, the LSD drives there but not with a wheel in the air, and the locker does both; both on ice, nothing does). The 3D is `js/diffdemo.js` (draws only, built facing +z with the left wheel at +x; gear speeds as the main view's rear axle), its controls are the last block of app.js. `dd.tmp.html?t=lsd&l=tar&r=ice` (gitignored) shows just that section for screenshots.
+
+**Shared shapes:** `js/shapes3d.js` (`window.SYS_SHAPES`: glass, rod, gear, coneGear, ringGear, along, collarMesh) is used by both 3D views; load it after three.min.js and before diagram3d.js / diffdemo.js.
+
+**Left and right in the main view** (fixed 2026-10-30): the drivetrain is built with the left wheels at -x, but facing +z three.js's left is +x, so until then every "left" wheel showed on the vehicle's right. diagram3d.js now mirrors the whole scene group (`world.scale.x = -1`), and its camera views and lights are given in the mirrored space (the whole-drivetrain view is from the front left).
+
 ## Figures are illustrative
 
 Unlike the other tools, this page is an **illustration, not a calculator**. The grip, rolling resistance, engine pull, LSD and Torsen bias ratios and the wet clutch's limit in `js/data.js` are round numbers chosen to show the behaviour, and the page says so (under the bench, and in "What this page can't tell you", built from `gaps` in data.js). There's no sources page yet. If the owner wants manufacturer sources, add them under the usual source policy (see `../Ropes_Recovery/CLAUDE.md`).
@@ -52,9 +64,11 @@ Forces are fractions of the vehicle's weight. Wheels on the ground share the wei
 index.html            The page: bench (left panels, centre 3D view, right dash), "How each one works" cards, explainers, disclaimer
 js/data.js            Surfaces, engine pull, low range slider, LSD/Torsen bias, clutch limit, systems and their modes, scenarios, defaults, gaps
 js/calc.js            The model: normalise, wheelGrip, needed, splits, capacity, distribute, solve, warnings, toggles, suggest
+js/shapes3d.js        Shapes shared by both 3D views: gears, see-through housings, shafts
 js/diagram3d.js       The 3D view (draws only): build*, paint (colour code), speeds, camera, labels, loop
+js/diffdemo.js        The diff demo's 3D view (draws only): one axle, arrows, wheel tags
 js/vendor/three.min.js  three.js r149 (MIT)
-js/app.js             State (localStorage key 4x4-systems-v2), building the controls, update()
+js/app.js             State (localStorage key 4x4-systems-v2), building the controls, update(); then the diff demo's controls
 js/circuit.js         The circuit board behind the page (identical on every PsyPhin site)
 tests/                index.html + calc.test.js; run.ps1 runs them in headless Edge
 ```

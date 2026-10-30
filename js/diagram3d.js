@@ -86,105 +86,8 @@ window.SYS_DIAGRAM = (function () {
   const rubber = new T.MeshStandardMaterial({ color: 0x15181f, metalness: 0.05, roughness: 0.92 });
   const rimMat = new T.MeshStandardMaterial({ color: 0x9aa6c2, metalness: 0.85, roughness: 0.25 });
 
-  // A see-through housing with glowing edges, like a cutaway drawing.
-  function glass(geo, tint, opacity) {
-    const g = new T.Group();
-    const m = new T.MeshPhysicalMaterial({
-      color: tint || 0x9fd8ff, transparent: true, opacity: opacity || 0.12, roughness: 0.1, metalness: 0.1,
-      depthWrite: false, side: T.DoubleSide, emissive: 0x0b3a66, emissiveIntensity: 0.25
-    });
-    g.add(new T.Mesh(geo, m));
-    const edges = new T.LineSegments(new T.EdgesGeometry(geo, 25),
-      new T.LineBasicMaterial({ color: 0x4cc9ff, transparent: true, opacity: 0.45 }));
-    g.add(edges);
-    return g;
-  }
-
-  // ---------------------------------------------------------------- geometry helpers
-  // A shaft between two points.
-  function rod(a, b, r, mat) {
-    const dir = new T.Vector3().subVectors(b, a);
-    const m = new T.Mesh(new T.CylinderGeometry(r, r, dir.length(), 14), mat);
-    m.position.copy(a).addScaledVector(dir, 0.5);
-    m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), dir.clone().normalize());
-    m.castShadow = true;
-    return m;
-  }
-
-  // A spur gear: a disc with straight teeth round the rim, axis = local Y.
-  function gear(radius, width, teeth, mat, helix) {
-    const g = new T.Group();
-    g.add(new T.Mesh(new T.CylinderGeometry(radius * 0.94, radius * 0.94, width, 32), mat));
-    const tw = ((2 * Math.PI * radius) / teeth) * 0.5;
-    const inst = new T.InstancedMesh(new T.BoxGeometry(tw, width, radius * 0.16), mat, teeth);
-    const o = new T.Object3D();
-    for (let i = 0; i < teeth; i++) {
-      const a = (i / teeth) * Math.PI * 2;
-      o.position.set(Math.cos(a) * radius, 0, Math.sin(a) * radius);
-      o.rotation.set(0, -a + Math.PI / 2, 0);
-      if (helix) o.rotateZ(helix); // helical: the teeth lean round the gear
-      o.updateMatrix();
-      inst.setMatrixAt(i, o.matrix);
-    }
-    g.add(inst);
-    g.add(new T.Mesh(new T.CylinderGeometry(radius * 0.28, radius * 0.28, width * 1.5, 12), mat)); // hub
-    return g;
-  }
-
-  // A bevel gear on a cone whose apex is the local origin and whose axis is
-  // local Y: alpha = the pitch cone's half-angle, the teeth run from r1 to r2
-  // along the cone. Two bevel gears mesh when their apexes meet and their
-  // angles add up to 90 degrees: 45 + 45 for spider and side gears, 76 + 14
-  // for a ring gear (teeth on its face) and its pinion (a small steep cone).
-  function coneGear(alphaDeg, r1, r2, teeth, mat) {
-    const a = (alphaDeg * Math.PI) / 180, sa = Math.sin(a), ca = Math.cos(a);
-    const g = new T.Group();
-    const body = new T.Mesh(new T.CylinderGeometry(r2 * sa * 0.97, r1 * sa * 0.97, Math.max(0.006, (r2 - r1) * ca), 36), mat);
-    body.position.y = ((r1 + r2) / 2) * ca;
-    g.add(body);
-    const rm = ((r1 + r2) / 2) * sa;
-    const depth = Math.max(0.008, rm * 0.18);
-    const inst = new T.InstancedMesh(new T.BoxGeometry(depth, r2 - r1, ((Math.PI * rm) / teeth) * 0.95), mat, teeth);
-    const m = new T.Matrix4();
-    for (let i = 0; i < teeth; i++) {
-      const th = (i / teeth) * Math.PI * 2, c = Math.cos(th), s = Math.sin(th);
-      const n = new T.Vector3(ca * c, -sa, ca * s);   // out of the cone's surface
-      const gd = new T.Vector3(sa * c, ca, sa * s);   // along the cone, away from the apex
-      const t = new T.Vector3(-s, 0, c);              // round the cone
-      m.makeBasis(n, gd, t);
-      const p = gd.clone().multiplyScalar((r1 + r2) / 2).addScaledVector(n, depth * 0.35);
-      m.setPosition(p);
-      inst.setMatrixAt(i, m);
-    }
-    g.add(inst);
-    return g;
-  }
-
-  // An internal (ring) gear: teeth pointing in, axis = local Y.
-  function ringGear(rIn, width, teeth, mat, helix) {
-    const g = new T.Group();
-    g.add(new T.Mesh(new T.CylinderGeometry(rIn + 0.022, rIn + 0.022, width, 48, 1, true), mat));
-    const tw = ((2 * Math.PI * rIn) / teeth) * 0.5;
-    const inst = new T.InstancedMesh(new T.BoxGeometry(tw, width, 0.016), mat, teeth);
-    const o = new T.Object3D();
-    for (let i = 0; i < teeth; i++) {
-      const a = (i / teeth) * Math.PI * 2;
-      o.position.set(Math.cos(a) * (rIn + 0.006), 0, Math.sin(a) * (rIn + 0.006));
-      o.rotation.set(0, -a + Math.PI / 2, 0);
-      if (helix) o.rotateZ(helix);
-      o.updateMatrix();
-      inst.setMatrixAt(i, o.matrix);
-    }
-    g.add(inst);
-    return g;
-  }
-
-  // Point an object's local Y axis along a world axis ("x" or "z").
-  function along(obj, axis) {
-    if (axis === "x") obj.rotation.z = Math.PI / 2;  // local Y -> world -X
-    if (axis === "z") obj.rotation.x = Math.PI / 2;  // local Y -> world +Z
-    return obj;
-  }
+  // Shapes shared with the diff demo (js/shapes3d.js).
+  const { glass, rod, gear, coneGear, ringGear, along, collarMesh } = window.SYS_SHAPES;
 
   // Register something that turns about its own Y axis at the speed of `name`.
   // Its orientation moves to a holder and only the spin stays on the object:
@@ -531,19 +434,6 @@ window.SYS_DIAGRAM = (function () {
     tcGroups.bevel = buildBevelCentre(tc);
     tcGroups.clutch = buildClutch(tc);
     tcGroups.cuLabel = label("", new T.Vector3(-0.22, MY + 0.22, CU_Z - 0.04), "tag3d--small");
-  }
-
-  // A sliding dog collar: a short sleeve with dog teeth on both faces.
-  function collarMesh(r, mat) {
-    const g = new T.Group();
-    g.add(new T.Mesh(new T.CylinderGeometry(r, r, 0.03, 24), mat));
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      const d = new T.Mesh(new T.BoxGeometry(0.016, 0.05, 0.016), mat);
-      d.position.set(Math.cos(a) * r * 0.75, 0, Math.sin(a) * r * 0.75);
-      g.add(d);
-    }
-    return g;
   }
 
   // The chain: links running round both sprockets.
@@ -1087,10 +977,11 @@ window.SYS_DIAGRAM = (function () {
 
   // ---------------------------------------------------------------- camera
   const VIEWS = {
-    all:   { target: [0.05, 0.35, -0.1],    pos: [-4.3, 3.7, 2.7] },
-    tcase: { target: [0.1, MY - 0.08, -0.42], pos: [-1.35, 0.72, 0.05] },
-    front: { target: [FD.x, AY, FZ],        pos: [1.1, 0.74, 0.62] },   // from the right: the front ring gear is on the left
-    rear:  { target: [RD.x, AY, RZ],        pos: [-0.9, 0.74, -0.78] }
+    // in the scene's (mirrored) space: +x is the vehicle's left
+    all:   { target: [-0.05, 0.35, -0.1],    pos: [4.3, 3.7, 2.7] },     // from the front left
+    tcase: { target: [-0.1, MY - 0.08, -0.42], pos: [1.35, 0.72, 0.05] },
+    front: { target: [-FD.x, AY, FZ],        pos: [-1.1, 0.74, 0.62] },  // from the right: the front ring gear is on the left
+    rear:  { target: [-RD.x, AY, RZ],        pos: [0.9, 0.74, -0.78] }
   };
   const cam = { target: new T.Vector3(), sph: new T.Spherical(), goal: null, from: null, t: 1 };
 
@@ -1542,16 +1433,21 @@ window.SYS_DIAGRAM = (function () {
 
     scene.add(new T.HemisphereLight(0xbfdcff, 0x1a1408, 0.5));
     const sun = new T.DirectionalLight(0xffffff, 0.95);
-    sun.position.set(-3, 6, 3.5);
+    sun.position.set(3, 6, 3.5); // over the camera's shoulder (front left)
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 1, far: 15 });
     scene.add(sun);
     const rim = new T.DirectionalLight(0x4cc9ff, 0.5);
-    rim.position.set(4, 3, -4);
+    rim.position.set(-4, 3, -4);
     scene.add(rim);
 
     world = new T.Group();
+    // Mirrored across the centreline: everything is built with the left wheels
+    // at -x, but facing +z (forwards) the left is +x in three.js's right-handed
+    // space, so without this every "left" part showed on the vehicle's right
+    // (found 2026-10-30). The VIEWS below are in the mirrored space.
+    world.scale.x = -1;
     scene.add(world);
     rig = new T.Group();
     world.add(rig);

@@ -46,6 +46,27 @@ window.SYS_DATA = {
   // differ widely.
   lsd: { bias: 2.5, preload: 0.10 },
 
+  // The diff demo under "How each one works" (owner, 2026-10-30): one axle on
+  // its own. load = the share of the weight on each of its wheels; need = the
+  // push the axle has to give to keep going (illustrative: chosen so an open
+  // diff is stuck with a wheel on ice, an LSD gets going there but not with a
+  // wheel in the air, and a locker does both). The diff starts open with the
+  // right wheel in the air.
+  diffDemo: {
+    load: 0.25, need: 0.12,
+    start: { type: "open", left: "tar", right: "air" },
+    types: [
+      { id: "open", name: "Open", blurb: "Always gives both wheels the same torque. The wheels can turn at different speeds, so the free one takes all the turning." },
+      { id: "lsd", name: "LSD", blurb: "Clutch packs resist one wheel spinning faster than the other, so the wheel with grip can take several times the torque of the slipping one, plus a little from the clutches' preload." },
+      { id: "locked", name: "Locked", blurb: "A dog collar locks a side gear to the carrier: both wheels turn together, and the one with grip can take all of the torque." }
+    ],
+    grounds: [
+      { id: "tar", name: "Grip" },
+      { id: "ice", name: "Slippery" },
+      { id: "air", name: "In the air" }
+    ]
+  },
+
   // Torsen centre diff: torque bias ratio between the axles. Illustrative.
   torsen: { bias: 3 },
 

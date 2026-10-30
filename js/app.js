@@ -320,4 +320,138 @@
   // a link such as #view-tcase opens zoomed in on that part
   const hv = /^#view-(\w+)$/.exec(location.hash);
   if (hv) { const b = document.querySelector("#views button[data-view='" + hv[1] + "']"); if (b) b.click(); }
+
+  // ---------------------------------------------------------------- the diff demo (owner, 2026-10-30)
+  // One axle on its own: the kind of diff and the ground under each wheel.
+  // Not saved: it opens on an open diff with the right wheel in the air.
+  const DD = D.diffDemo;
+  const DV = window.SYS_DIFFDEMO;
+  let dd = Object.assign({}, DD.start);
+  const DD_SIDE = { l: "left", r: "right" };
+  const DD_DIFF = { open: "open diff", lsd: "LSD", locked: "locked diff" };
+
+  function ddSet(change) {
+    dd = Object.assign({}, dd, change);
+    ddUpdate();
+  }
+
+  function ddBuild() {
+    DD.types.forEach((t) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.id = t.id;
+      b.textContent = t.name;
+      b.addEventListener("click", () => ddSet({ type: t.id }));
+      $("dd-types").appendChild(b);
+    });
+    ["l", "r"].forEach((w) => {
+      const box = document.createElement("div");
+      box.className = "wheel-pick";
+      box.setAttribute("role", "radiogroup");
+      box.setAttribute("aria-label", DD_SIDE[w] + " wheel");
+      const name = document.createElement("span");
+      name.className = "wheel-pick-name";
+      name.textContent = (w === "l" ? "Left" : "Right") + " wheel";
+      box.appendChild(name);
+      DD.grounds.forEach((g) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "ground ground--" + g.id;
+        b.dataset.wheel = w;
+        b.dataset.id = g.id;
+        b.innerHTML = "<span class=\"ground-swatch\" aria-hidden=\"true\"></span><span></span>";
+        b.lastChild.textContent = g.name;
+        b.addEventListener("click", () => ddSet(w === "l" ? { left: g.id } : { right: g.id }));
+        box.appendChild(b);
+      });
+      $("dd-wheels").appendChild(box);
+    });
+  }
+
+  // What's happening, in words.
+  function ddWords(r) {
+    const one = r.slip.l !== r.slip.r ? (r.slip.l ? "l" : "r") : null;
+    const other = one === "l" ? "r" : "l";
+    if (r.moves) {
+      const head = "Driving on";
+      if (Math.abs(r.torqueShare.l - 0.5) < 0.005) return [head, "The torque is shared 50:50 and both wheels turn at the same speed."];
+      const big = r.torqueShare.l > 0.5 ? "l" : "r";
+      return [head, "The " + DD_DIFF[r.type] + " sends " + pct(r.torqueShare[big]) + " of the torque to the " + DD_SIDE[big] +
+        " wheel, the one with grip, and both wheels turn together."];
+    }
+    const head = one ? "Stuck: the " + DD_SIDE[one] + " wheel spins" : "Stuck: both wheels spin";
+    if (!one) {
+      return [head, r.type === "locked"
+        ? "Both wheels turn together, but between them they can't hold the push needed. A locker can't add grip."
+        : "Neither wheel has the grip. A diff can only send torque to a wheel that can use it."];
+    }
+    const air = r.surfaces[one] === "air";
+    if (r.type === "open") {
+      return [head, "An open diff always gives both wheels the same torque, so the " + DD_SIDE[other] + " wheel only gets what the spinning one can hold" +
+        (air ? ": nothing, it's in the air." : ", which is very little on ice.") +
+        " What goes to the wheel with the least resistance is the turning, not the torque: it spins at twice the speed while the other stands still."];
+    }
+    return [head, "The LSD's clutch packs send the " + DD_SIDE[other] + " wheel " + pct(r.torqueShare[other]) +
+      " of the torque, more than an open diff could" + (air ? " with a wheel in the air" : "") + ", but only " + pct(r.ground / r.need) +
+      " of the push needed. A locker would send it all."];
+  }
+
+  function ddStatus(r) {
+    const el = $("dd-status");
+    const [head, sub] = ddWords(r);
+    el.className = "status status--" + (r.moves ? "move" : "spin");
+    el.innerHTML = "<span class=\"status-icon\" aria-hidden=\"true\">" + (r.moves ? "&#10003;" : "!") + "</span>" +
+      "<div class=\"status-text\"><p class=\"status-head\"></p><p class=\"status-sub\"></p></div>";
+    el.querySelector(".status-head").textContent = head;
+    el.querySelector(".status-sub").textContent = sub;
+  }
+
+  // The split bars under the picture: torque and speed, left against right,
+  // and how much of the push needed reaches the ground.
+  function ddBars(r) {
+    const el = $("dd-bars");
+    el.innerHTML = "";
+    const state = (w) => (r.slip[w] ? "spin" : r.torque[w] > 1e-6 ? "flow" : "none");
+    const row = (title, note, shares, kinds) => {
+      const d = document.createElement("div");
+      d.className = "dd-row";
+      d.innerHTML = "<p class=\"dd-row-title\"><span></span><small></small></p><div class=\"dd-split\"><span class=\"dd-seg dd-seg--l\"></span><span class=\"dd-seg dd-seg--r\"></span></div>";
+      d.querySelector(".dd-row-title span").textContent = title;
+      d.querySelector(".dd-row-title small").textContent = note;
+      ["l", "r"].forEach((w) => {
+        const seg = d.querySelector(".dd-seg--" + w);
+        seg.style.flexGrow = Math.max(shares[w], 0.0001);
+        seg.className = "dd-seg dd-seg--" + w + " dd-seg--" + kinds[w];
+        seg.textContent = (w === "l" ? "Left " : "Right ") + pct(shares[w]);
+        if (shares[w] < 0.12) seg.classList.add("is-thin");
+      });
+      el.appendChild(d);
+    };
+    const none = r.ground < 1e-6;
+    row("Torque", none ? "shared 50:50, but of nothing: neither wheel holds any" : "how the diff shares the twisting force", r.torqueShare, { l: state("l"), r: state("r") });
+    row("Speed", "how the turning is shared", r.speedShare, { l: r.slip.l ? "spin" : "speed", r: r.slip.r ? "spin" : "speed" });
+    const g = document.createElement("div");
+    g.className = "dd-row";
+    const f = Math.min(1, r.ground / r.need);
+    g.innerHTML = "<p class=\"dd-row-title\"><span>Reaching the ground</span><small></small></p><div class=\"dd-gauge\"><span class=\"dd-gauge-fill\"></span></div>";
+    g.querySelector("small").textContent = pct(r.ground / r.need) + " of the push it needs to keep going";
+    const fill = g.querySelector(".dd-gauge-fill");
+    fill.style.width = (f * 100).toFixed(1) + "%";
+    fill.classList.toggle("is-short", !r.moves);
+    el.appendChild(g);
+  }
+
+  function ddUpdate() {
+    const r = C.diffDemo(dd.type, dd.left, dd.right);
+    document.querySelectorAll("#dd-types button").forEach((b) => radio(b, b.dataset.id === dd.type));
+    $("dd-blurb").textContent = DD.types.find((t) => t.id === dd.type).blurb;
+    document.querySelectorAll("#dd-wheels .ground").forEach((b) => radio(b, dd[b.dataset.wheel === "l" ? "left" : "right"] === b.dataset.id));
+    ddStatus(r);
+    ddBars(r);
+    DV.show(r);
+  }
+
+  ddBuild();
+  DV.init($("dd-view"));
+  ddUpdate();
 })();

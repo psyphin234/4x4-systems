@@ -170,6 +170,33 @@ window.SYS_CALC = (function () {
     return distribute(strong, fs, out, braked) + distribute(weak, fw, out, braked || brakeWeak);
   }
 
+  // The diff demo: one diff ("open", "lsd" or "locked") between two wheels on
+  // the given surfaces, pushing what one axle needs (D.diffDemo). Torque
+  // shares are of the torque reaching the ground (50:50 when there's none);
+  // speeds are relative to the vehicle rolling along (1 each): stuck, a
+  // slipping wheel on an open diff or LSD takes all the turning (2, the other 0).
+  function diffDemo(type, left, right) {
+    const dd = D.diffDemo;
+    const wheel = (id, sf) => ({ type: "wheel", id: id, grip: surface(sf).grip * dd.load });
+    const n = { type: type, id: "diff", a: wheel("l", left), b: wheel("r", right) };
+    const cap = capacity(n);
+    const out = {};
+    const ground = distribute(n, dd.need, out);
+    const moves = cap >= dd.need - EPS;
+    const tl = out.l.force, tr = out.r.force, tt = tl + tr;
+    const slip = { l: !moves && out.l.slip, r: !moves && out.r.slip };
+    let speed;
+    if (moves || type === "locked" || (slip.l && slip.r)) speed = { l: 1, r: 1 };
+    else speed = { l: slip.l ? 2 : 0, r: slip.r ? 2 : 0 };
+    const share = (a, b) => (a + b > EPS ? a / (a + b) : 0.5);
+    return {
+      type: type, left: left, right: right, need: dd.need, capacity: cap, ground: ground, moves: moves,
+      torque: { l: tl, r: tr }, torqueShare: { l: share(tl, tr), r: share(tr, tl) },
+      speed: speed, speedShare: { l: share(speed.l, speed.r), r: share(speed.r, speed.l) },
+      slip: slip, surfaces: { l: left, r: right }
+    };
+  }
+
   // The whole picture for one setting of the switches and terrain.
   // status: "move" (it drives on), "spin" (not enough grip: wheels spin), or
   // "bog" (not enough engine pull: it bogs down; low range is the answer).
@@ -258,6 +285,6 @@ window.SYS_CALC = (function () {
 
   return {
     WHEELS, surface, system, mode, normalise, wheelGrip, needed, splits, tree,
-    capacity, distribute, solve, warnings, toggles, suggest
+    capacity, distribute, solve, warnings, toggles, suggest, diffDemo
   };
 })();
