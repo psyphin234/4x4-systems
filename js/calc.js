@@ -8,6 +8,9 @@
    - open diff: the same torque to both sides, so 2 × what the weaker side holds;
    - locked (locker, CDL, part-time 4H/4L, 4HLc): both sides turn together, so the sum;
    - LSD / Torsen: the stronger side takes up to `bias` × the weaker side's torque;
+     a clutch LSD's preload also gives it at least the weaker side's plus the
+     preload, so a wheel in the air still leaves the other some drive (a Torsen
+     has no preload: with an end in the air it passes nothing);
    - traction control: an open diff whose spinning side is braked, so the other
      side gets drive; at the ground that's the sum, like a locker;
    - wet clutch (4A): the rear is driven, and the clutch passes up to its limit
@@ -94,13 +97,23 @@ window.SYS_CALC = (function () {
 
   const bias = (type) => (type === "torsen" ? D.torsen.bias : D.lsd.bias);
 
+  // The most the stronger side of an LSD or Torsen can take, given what the
+  // weaker side holds (before the stronger side's own grip runs out).
+  function strongLimit(type, weak) {
+    const byBias = bias(type) * weak;
+    return type === "lsd" ? Math.max(byBias, weak + D.lsd.preload) : byBias;
+  }
+
   // The most a node can pass to the ground before a wheel spins.
   function capacity(n) {
     if (n.type === "wheel") return n.grip;
     if (n.type === "rear") return capacity(n.b);
     const ca = capacity(n.a), cb = capacity(n.b);
     if (n.type === "open") return 2 * Math.min(ca, cb);
-    if (n.type === "lsd" || n.type === "torsen") return Math.min(ca + cb, Math.min(ca, cb) * (1 + bias(n.type)));
+    if (n.type === "lsd" || n.type === "torsen") {
+      const weak = Math.min(ca, cb);
+      return weak + Math.min(Math.max(ca, cb), strongLimit(n.type, weak));
+    }
     if (n.type === "clutch") return cb + Math.min(ca, D.clutch.max); // a = front, b = rear (driven)
     return ca + cb; // locked, tc
   }
@@ -144,9 +157,9 @@ window.SYS_CALC = (function () {
     } else if (n.type === "open") {
       fw = F / 2; fs = cw; // the weak side spins; the strong side gets only what it holds
     } else if (n.type === "lsd" || n.type === "torsen") {
-      const b = bias(n.type);
-      if (F <= capacity(n) + EPS) { fw = cw; fs = F - cw; } // the bias carries the rest across
-      else { fw = F / 2; fs = b * cw <= cs ? b * cw : F - cw; }
+      const lim = strongLimit(n.type, cw);
+      if (F <= capacity(n) + EPS) { fw = cw; fs = F - cw; } // the bias (or preload) carries the rest across
+      else { fw = F / 2; fs = lim < cs ? lim : F - cw; }
     } else { // tc: brake the weak side, the rest goes to the strong side
       fw = cw; fs = F - cw; brakeWeak = true;
     }

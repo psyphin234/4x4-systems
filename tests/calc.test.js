@@ -72,7 +72,9 @@
 
   test("LSD and Torsen: the strong side takes up to bias × the weak side", () => {
     const t = { type: "lsd", a: leaf("rl", 0.05), b: leaf("rr", 0.3) };
-    near(C.capacity(t), 0.05 * (1 + D.lsd.bias), 1e-9, "LSD capacity");
+    near(C.capacity(t), 0.05 + Math.max(0.05 * D.lsd.bias, 0.05 + D.lsd.preload), 1e-9, "LSD capacity");
+    near(C.capacity({ type: "lsd", a: leaf("rl", 0.1), b: leaf("rr", 0.5) }), 0.1 * (1 + D.lsd.bias), 1e-9, "LSD capacity, bias wins");
+    near(C.capacity({ type: "lsd", a: leaf("rl", 0), b: leaf("rr", 0.3) }), D.lsd.preload, 1e-9, "a lifted wheel: the preload still drives the other");
     const out = {};
     C.distribute(t, 0.15, out);
     eq(out.rl.slip || out.rr.slip, false, "under capacity nothing spins");
@@ -178,6 +180,10 @@
     eq(at(tar, deg("steep")) !== "move", true, "steep tar: 2H is stuck");
     eq(at(tar, deg("steep"), { mode: "4H" }), "bog", "steep tar: 4H bogs");
     eq(at(tar, deg("steep"), { mode: "4L" }), "move", "steep tar: 4L climbs");
+    const lift = { fl: "mud", fr: "mud", rl: "mud", rr: "air" };
+    eq(at(lift, deg("level")), "spin", "level, a rear wheel in the air: 2H with an open diff spins");
+    eq(at(lift, deg("level"), { rearLsd: true }), "move", "level, a rear wheel in the air: the LSD keeps it going");
+    eq(at(lift, deg("steep"), { mode: "4L", rearLsd: true }), "spin", "steep, a rear wheel in the air: an LSD isn't enough");
     eq(D.lowRange.default >= D.lowRange.min && D.defaults.lowRatio >= D.lowRange.min, true, "default ratio in range");
   });
 

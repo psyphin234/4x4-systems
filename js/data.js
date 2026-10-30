@@ -38,9 +38,13 @@ window.SYS_DATA = {
     { id: "steep", name: "Steep slope", deg: 25 }
   ],
 
-  // Limited-slip rear diff: torque bias ratio (the strong side can take this
-  // many times what the weak side holds). Illustrative; real LSDs differ widely.
-  lsd: { bias: 2.5 },
+  // Limited-slip rear diff (clutch type): torque bias ratio (the strong side can
+  // take this many times what the weak side holds) and preload (the clutch
+  // packs are pre-loaded by springs, so the strong side gets at least this much
+  // more than the weak side, even with that wheel in the air; added 2026-10-30
+  // after the owner found the LSD hardly helped). Illustrative; real LSDs
+  // differ widely.
+  lsd: { bias: 2.5, preload: 0.10 },
 
   // Torsen centre diff: torque bias ratio between the axles. Illustrative.
   torsen: { bias: 3 },

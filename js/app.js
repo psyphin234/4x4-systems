@@ -199,9 +199,13 @@
       const sa = wh[a].slip, sb = wh[b].slip;
       if (sa !== sb) {
         const spinner = sa ? a : b, other = sa ? b : a;
-        out.push("The " + SPLIT_NAMES[type] + " " + axle + " diff gives the " + WHEEL_NAMES[other] + " wheel only " +
-          (type === "lsd" ? "a few times " : "") + "what the spinning " + WHEEL_NAMES[spinner] + " wheel can hold" +
-          (wh[spinner].surface === "air" ? " (nothing: it's in the air)." : "."));
+        const air = wh[spinner].surface === "air";
+        out.push(type === "lsd"
+          ? "The limited-slip " + axle + " diff gives the " + WHEEL_NAMES[other] + " wheel only " +
+            (air ? "what its clutch packs pass across, with the " + WHEEL_NAMES[spinner] + " wheel in the air." :
+              "a few times what the spinning " + WHEEL_NAMES[spinner] + " wheel can hold.")
+          : "The " + SPLIT_NAMES[type] + " " + axle + " diff gives the " + WHEEL_NAMES[other] + " wheel only what the spinning " +
+            WHEEL_NAMES[spinner] + " wheel can hold" + (air ? " (nothing: it's in the air)." : "."));
       }
     });
     if (k.centre === "open" || k.centre === "torsen") {
