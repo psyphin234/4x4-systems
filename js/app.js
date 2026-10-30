@@ -62,26 +62,6 @@
       $("lsd-seg").appendChild(b);
     });
 
-    // the ground
-    D.scenarios.forEach((sc) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "pick pick--terrain";
-      b.dataset.id = sc.id;
-      const sw = document.createElement("span");
-      sw.className = "terrain-swatch";
-      ["fl", "fr", "rl", "rr"].forEach((w) => {
-        const q = document.createElement("i");
-        q.style.background = C.surface(sc.wheels[w]).color;
-        sw.appendChild(q);
-      });
-      const name = document.createElement("span");
-      name.className = "pick-name";
-      name.textContent = sc.name;
-      b.append(sw, name);
-      b.addEventListener("click", () => set(fromScenario(sc.id)));
-      $("terrain-chips").appendChild(b);
-    });
     $("slope").addEventListener("input", (e) => set({ slope: +e.target.value }));
 
     // camera views
@@ -110,23 +90,30 @@
     $("lowRatio").step = D.lowRange.step;
     $("lowRatio").addEventListener("input", (e) => set({ lowRatio: +e.target.value }));
 
-    // under each wheel: laid out like the wheels
+    // under each wheel: laid out like the wheels, three buttons each
     C.WHEELS.forEach((w) => {
-      const label = document.createElement("label");
-      label.className = "wheel-pick wheel-pick--" + w;
-      const span = document.createElement("span");
-      span.textContent = WHEEL_SHORT[w];
-      const sel = document.createElement("select");
-      sel.id = "surf-" + w;
+      const box = document.createElement("div");
+      box.className = "wheel-pick wheel-pick--" + w;
+      box.setAttribute("role", "radiogroup");
+      box.setAttribute("aria-label", WHEEL_SHORT[w] + " wheel");
+      const name = document.createElement("span");
+      name.className = "wheel-pick-name";
+      name.textContent = WHEEL_SHORT[w];
+      box.appendChild(name);
       D.surfaces.forEach((sf) => {
-        const o = document.createElement("option");
-        o.value = sf.id;
-        o.textContent = sf.name;
-        sel.appendChild(o);
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "ground ground--" + sf.id;
+        b.dataset.wheel = w;
+        b.dataset.id = sf.id;
+        b.innerHTML = "<span class=\"ground-swatch\" aria-hidden=\"true\"></span><span></span>";
+        b.lastChild.textContent = sf.label;
+        b.title = sf.name + ": " + sf.short.toLowerCase();
+        b.setAttribute("aria-label", sf.name);
+        b.addEventListener("click", () => setSurface(w, sf.id));
+        box.appendChild(b);
       });
-      sel.addEventListener("change", () => setSurface(w, sel.value));
-      label.append(span, sel);
-      $("wheel-grid").appendChild(label);
+      $("wheel-grid").appendChild(box);
     });
 
     const gaps = $("gaps");
@@ -307,9 +294,6 @@
     document.querySelectorAll("#sys-chips .pick").forEach((b) => radio(b, b.dataset.id === state.system));
     $("sys-blurb").textContent = sys.blurb;
     document.querySelectorAll("#lsd-seg button").forEach((b) => radio(b, (b.dataset.id === "lsd") === !!state.rearLsd));
-    document.querySelectorAll("#terrain-chips .pick").forEach((b) => radio(b, b.dataset.id === state.scenario));
-    const sc = D.scenarios.find((s) => s.id === state.scenario);
-    $("terrain-note").textContent = sc ? sc.note : "Your own mix: click the ground under a wheel, or use the boxes on the right.";
     $("slope").value = state.slope;
     $("slope-out").textContent = state.slope + "°";
 
@@ -335,7 +319,7 @@
     });
     $("lowRatio").value = state.lowRatio;
     $("ratio-out").textContent = "×" + (+state.lowRatio).toFixed(1);
-    C.WHEELS.forEach((w) => { $("surf-" + w).value = state.surfaces[w]; });
+    document.querySelectorAll("#wheel-grid .ground").forEach((b) => radio(b, state.surfaces[b.dataset.wheel] === b.dataset.id));
 
     const cautions = $("cautions");
     cautions.innerHTML = "";

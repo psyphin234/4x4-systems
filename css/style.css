@@ -3394,3 +3394,41 @@ select:focus {
 .tag3d--tc { display: grid; gap: 1px; text-align: center; }
 .tag3d-sub { font-size: 0.6rem; color: var(--text-muted); letter-spacing: 0.06em; }
 .tag3d.is-lock .tag3d-sub { color: var(--warn); }
+
+/* ------------------------------------------------------------ under each wheel: three buttons per wheel, laid out like the wheels */
+.wheel-hint { margin: -4px 0 10px; }
+.wheel-grid { grid-template-columns: 1fr 1fr; gap: 10px 8px; }
+.wheel-pick { display: grid; gap: 4px; align-content: start; }
+.wheel-pick-name { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+
+.ground {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 7px;
+  min-height: 30px;
+  cursor: pointer;
+}
+
+.ground:hover { border-color: var(--text-muted); color: var(--text); }
+
+.ground[aria-checked="true"] {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(76, 201, 255, 0.12);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.ground:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.ground-swatch { flex: none; width: 18px; height: 18px; border-radius: 4px; }
+.ground--tar .ground-swatch { background: linear-gradient(90deg, transparent 44%, #e8e4d6 44% 56%, transparent 56%) center / 100% 60% no-repeat, #2a2f3b; }
+.ground--mud .ground-swatch { background: radial-gradient(circle at 30% 35%, #a08a70 0 2px, transparent 3px), radial-gradient(circle at 70% 65%, #8a7660 0 2.5px, transparent 3.5px), radial-gradient(circle at 65% 25%, #7a6550 0 1.5px, transparent 2.5px), #5a3f26; }
+.ground--air .ground-swatch { background: #03050c; border: 1px dashed rgba(76, 201, 255, 0.7); }

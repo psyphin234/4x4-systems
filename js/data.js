@@ -12,9 +12,9 @@ window.SYS_DATA = {
   // push needed to keep rolling on the flat). Both illustrative. "air" carries
   // no load, so it has no grip at all.
   surfaces: [
-    { id: "tar", name: "High traction", short: "Tar", grip: 0.80, roll: 0.015, color: "#3a4256", fleck: "#9aa3b6" },
-    { id: "mud", name: "Low traction",  short: "Mud", grip: 0.30, roll: 0.10,  color: "#5a3f26", fleck: "#8a6541" },
-    { id: "air", name: "No traction",   short: "In the air", grip: 0, roll: 0, color: "#05070f", fleck: "#05070f" }
+    { id: "tar", name: "High traction", label: "High", short: "Tar", grip: 0.80, roll: 0.015, color: "#3a4256", fleck: "#9aa3b6" },
+    { id: "mud", name: "Low traction",  label: "Low", short: "Loose rock and mud", grip: 0.30, roll: 0.10, color: "#5a3f26", fleck: "#8a6541" },
+    { id: "air", name: "No traction",   label: "None", short: "In the air", grip: 0, roll: 0, color: "#05070f", fleck: "#05070f" }
   ],
 
   // The engine's pull at the wheels in first gear, high range, as a fraction of
@@ -77,7 +77,9 @@ window.SYS_DATA = {
       blurb: "No centre diff: a computer-controlled wet multi-plate clutch feeds the front. In 4A it drives the rear and clamps the clutch as the rear starts to slip; 4H and 4L clamp it solid." }
   ],
 
-  // "Try:" chips. Wheels: fl, fr, rl, rr (front/rear, left/right). slope in degrees.
+  // Set-ups: the page starts on the first one, and the tests use them all. Not
+  // shown on the page (owner, 2026-10-30: "Under each wheel" is all it needs).
+  // Wheels: fl, fr, rl, rr (front/rear, left/right). slope in degrees.
   scenarios: [
     { id: "mud",   name: "Muddy track",          slope: 5,  wheels: { fl: "mud", fr: "mud", rl: "mud", rr: "mud" },
       note: "Low traction everywhere: driving more wheels is what counts." },

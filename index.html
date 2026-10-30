@@ -56,9 +56,9 @@
           <div class="seg" id="lsd-seg" role="radiogroup" aria-labelledby="lsd-label"></div>
         </div>
         <div class="panel">
-          <p class="panel-title" id="terrain-label">The ground</p>
-          <div class="pick-list pick-list--terrain" id="terrain-chips" role="radiogroup" aria-labelledby="terrain-label"></div>
-          <p class="hint" id="terrain-note"></p>
+          <p class="panel-title">Under each wheel</p>
+          <p class="hint wheel-hint">Pick the ground under each wheel, here or by clicking it in the picture.</p>
+          <div class="wheel-grid" id="wheel-grid"></div>
           <p class="ctl-label" id="slope-label">Slope</p>
           <div class="slider">
             <input type="range" id="slope" min="0" max="35" step="1" aria-labelledby="slope-label">
@@ -103,10 +103,6 @@
             <input type="range" id="lowRatio" aria-labelledby="ratio-label">
             <output id="ratio-out" for="lowRatio"></output>
           </div>
-        </div>
-        <div class="panel">
-          <p class="panel-title">Under each wheel</p>
-          <div class="wheel-grid" id="wheel-grid"></div>
         </div>
         <div class="cautions" id="cautions" aria-live="polite"></div>
       </aside>
