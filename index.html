@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en-ZA" data-circuit="still">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>4x4 Systems Explained: Diff Lockers, CDL, Low Range and AWD | PsyPhin</title>
+  <meta name="description" content="Flip the switches on a live 4x4 drivetrain: 2H, 4H, 4L, centre diff lock, lockers and traction control, and watch what each does on slippery ground.">
+  <link rel="canonical" href="https://4x4.psyphin.co.za/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://4x4.psyphin.co.za/">
+  <meta property="og:title" content="4x4 Systems Explained">
+  <meta property="og:description" content="Flip the switches on a live 4x4 drivetrain: 2H, 4H, 4L, centre diff lock, lockers and traction control, and watch what each does on slippery ground.">
+  <meta name="theme-color" content="#040817">
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="icon" href="favicon-96x96.png" type="image/png" sizes="96x96">
+  <link rel="icon" href="favicon-192x192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="sys-page">
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <p class="construction"><strong>Under construction</strong> This page is still being built and checked.</p>
+
+  <header class="brand-bar">
+    <div class="brand-nav">
+      <a class="back-link" href="https://psyphin.co.za/#tools"><span class="back-link-arrow" aria-hidden="true">&larr;</span> <span class="back-link-label"><span class="back-link-more">More </span>PsyPhin tools</span> <span class="back-link-domain">psyphin.co.za</span></a>
+      <nav class="nav" aria-label="Site">
+        <a href="#bench" aria-current="page">Drivetrain</a>
+        <a href="#setups">How each one works</a>
+      </nav>
+    </div>
+    <div class="brand-inner">
+      <a class="brand-logo-link" href="https://psyphin.co.za/" aria-label="PsyPhin home"><img src="logo.jpg" alt="PsyPhin" class="brand-logo" width="560" height="501"></a>
+      <div class="brand-text">
+        <p class="brand-eyebrow">4x4 drivetrains &middot; Lockers, CDL, low range &amp; traction control</p>
+        <h1>4x4 Systems Explained</h1>
+        <p class="subtitle">Flip the switches on a live drivetrain and watch where the drive goes. Pick the vehicle and the ground on the left, press the dash switches on the right while it runs, and click the ground under any wheel to change it.</p>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <!-- The bench: setup on the left, the live drivetrain in the middle, the dash switches on the right -->
+    <section class="bench" id="bench" aria-label="Interactive drivetrain">
+      <aside class="side side--left">
+        <div class="panel">
+          <p class="panel-title" id="sys-label">The vehicle</p>
+          <div class="pick-list" id="sys-chips" role="radiogroup" aria-labelledby="sys-label"></div>
+          <p class="hint" id="sys-blurb"></p>
+          <p class="ctl-label" id="lsd-label">Rear diff fitted</p>
+          <div class="seg" id="lsd-seg" role="radiogroup" aria-labelledby="lsd-label"></div>
+        </div>
+        <div class="panel">
+          <p class="panel-title" id="terrain-label">The ground</p>
+          <div class="pick-list pick-list--terrain" id="terrain-chips" role="radiogroup" aria-labelledby="terrain-label"></div>
+          <p class="hint" id="terrain-note"></p>
+          <p class="ctl-label" id="slope-label">Slope</p>
+          <div class="slider">
+            <input type="range" id="slope" min="0" max="35" step="1" aria-labelledby="slope-label">
+            <output id="slope-out" for="slope"></output>
+          </div>
+        </div>
+      </aside>
+
+      <div class="centre">
+        <div class="status" id="status" role="status" aria-live="polite"></div>
+        <div class="view-box">
+          <canvas id="view" aria-label="Top view of the drivetrain, animated" role="img"></canvas>
+        </div>
+        <ul class="legend" aria-label="Colour key">
+          <li><span class="key key--grip"></span>Gripping and pushing</li>
+          <li><span class="key key--spin"></span>Spinning</li>
+          <li><span class="key key--brake"></span>Held by traction control</li>
+          <li><span class="key key--idle"></span>Not driven</li>
+          <li><span class="key key--lock"></span>Locked</li>
+          <li><span class="key key--flow"></span>Drive (thicker = more)</li>
+        </ul>
+        <div class="meters" id="meters"></div>
+      </div>
+
+      <aside class="side side--right">
+        <div class="panel dash">
+          <p class="panel-title">Dash switches</p>
+          <p class="ctl-label" id="range-label">Transfer lever</p>
+          <div class="lever" id="lever" role="radiogroup" aria-labelledby="range-label"></div>
+          <div class="switches" id="switches"></div>
+          <p class="ctl-label" id="ratio-label">Low range ratio <small>check your handbook</small></p>
+          <div class="slider">
+            <input type="range" id="lowRatio" aria-labelledby="ratio-label">
+            <output id="ratio-out" for="lowRatio"></output>
+          </div>
+        </div>
+        <div class="panel">
+          <p class="panel-title">Under each wheel</p>
+          <div class="wheel-grid" id="wheel-grid"></div>
+        </div>
+        <div class="cautions" id="cautions" aria-live="polite"></div>
+      </aside>
+    </section>
+
+    <p class="note-illustrative"><strong>An illustration, not a calculator.</strong> The grip and pull figures are round numbers chosen to show how each system behaves, not measurements of any vehicle. <a href="#explain-gaps">What this page can't tell you</a>.</p>
+
+    <!-- How each one works -->
+    <section class="setups" id="setups" aria-labelledby="setups-title">
+      <h2 id="setups-title" class="setups-title">How each one works</h2>
+      <div class="setup-grid">
+        <article class="setup">
+          <h3><span class="setup-dot setup-dot--flow"></span>Open diff</h3>
+          <p>Lets the two wheels on an axle turn at different speeds, so the vehicle can turn a corner. The catch: it always gives both wheels the <strong>same</strong> torque. If one wheel is on ice or in the air, the other gets only what that one can hold, and the free wheel spins.</p>
+        </article>
+        <article class="setup">
+          <h3><span class="setup-dot setup-dot--lsd"></span>Limited-slip diff (LSD)</h3>
+          <p>An open diff that resists one side spinning faster than the other, so it can send the gripping wheel several times what the slipping wheel holds. With a wheel right off the ground there's nothing to multiply, so it acts much like an open diff.</p>
+        </article>
+        <article class="setup">
+          <h3><span class="setup-dot setup-dot--lock"></span>Diff locker</h3>
+          <p>Locks both wheels on the axle to turn together, so whichever wheel has grip can use all of it. The strongest fix for a wheel in the air. It fights the steering, so it's for slow going on loose ground: unlock it on hard surfaces and before tight turns.</p>
+        </article>
+        <article class="setup">
+          <h3><span class="setup-dot setup-dot--lock"></span>Part-time 4x4</h3>
+          <p>No centre diff. In 2H only the rear axle drives. 4H and 4L join the front and rear shafts solidly, so drive goes to whichever axle grips. Because the shafts can't turn at different speeds, it winds up in turns on tar: use 2H on hard grippy roads.</p>
+        </article>
+        <article class="setup">
+          <h3><span class="setup-dot setup-dot--flow"></span>Full-time 4x4 and the CDL</h3>
+          <p>A centre diff between the front and rear shafts lets it stay in 4WD on tar. But an open centre diff has the same catch as an axle diff: one spinning wheel anywhere can take the drive from all the others. The <strong>centre diff lock (CDL)</strong> joins the shafts, like a part-time 4x4 in 4H.</p>
+        </article>
+        <article class="setup">
+          <h3><span class="setup-dot setup-dot--brake"></span>Traction control</h3>
+          <p>Brakes a wheel that starts to spin. The open diff then has something to push against, so drive goes across to the wheel with grip. It gets close to what lockers do at the wheels, but the engine has to push against the brakes too, and the brakes heat up on long climbs.</p>
+        </article>
+        <article class="setup">
+          <h3><span class="setup-dot setup-dot--lock"></span>Low range (4L)</h3>
+          <p>An extra set of reduction gears in the transfer case. It multiplies the engine's pull at the wheels and slows everything down, so you can crawl up steep or rocky ground with control. It adds <strong>pull, not grip</strong>: on ice it only spins the wheels harder.</p>
+        </article>
+        <article class="setup">
+          <h3><span class="setup-dot setup-dot--idle"></span>AWD</h3>
+          <p>Drives all four wheels all the time, usually through an open centre diff or a clutch coupling, with no low range and no lockers. It relies on traction control to stop a spinning wheel taking the drive.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="explainers" aria-label="Explainers">
+      <details class="explainer" id="explain-model">
+        <summary>How the picture works it out</summary>
+        <div class="explainer-body">
+          <p>Each wheel can push the ground with at most its grip times the weight on it. The wheels on the ground share the vehicle's weight evenly, so a lifted wheel carries none and has no grip at all.</p>
+          <p>The drive passes through the centre (the transfer case), then each axle's diff. An open diff can pass on twice what its weaker side can hold. A locked one passes on the sum of both sides. An LSD sits in between. Traction control acts like a locker at the ground, by braking the side that spins.</p>
+          <p>To keep moving up the slope it needs the slope's pull plus the drag of the surface. If the drivetrain can't pass that much to the ground, wheels spin. If it can but the engine can't pull that hard, it bogs down: that's when low range helps.</p>
+        </div>
+      </details>
+      <details class="explainer" id="explain-gaps">
+        <summary>What this page can't tell you</summary>
+        <div class="explainer-body"><ul id="gaps"></ul></div>
+      </details>
+    </section>
+
+    <aside id="disclaimer" class="disclaimer" aria-labelledby="disclaimer-title">
+      <h2 id="disclaimer-title">Disclaimer</h2>
+      <p><strong>For information only. It's not advice.</strong> This page shows how drivetrains behave in general, using illustrative figures. Your vehicle's handbook says which systems it has and when to use them: follow it. Driving off-road is dangerous, and the driver's judgement on the spot always comes first. PsyPhin accepts no liability for anything done with this page.</p>
+    </aside>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><strong>For information only.</strong> Check your vehicle's handbook for its own systems.</p>
+      <p>More 4x4 tools: <a href="https://tyres.psyphin.co.za/">4x4 Tyre Pressures</a> &middot; <a href="https://winching.psyphin.co.za/">Winch Planning and Sizing</a> &middot; <a href="https://ropes.psyphin.co.za/">Ropes and Shackles</a> &middot; <a href="https://towing.psyphin.co.za/">SA Towing Check</a>.</p>
+      <p>&copy; <span id="year"></span> PsyPhin</p>
+    </div>
+  </footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/diagram.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/circuit.js"></script>
+
+  <!-- GoatCounter: cookie-free page-visit stats at https://psyphin.goatcounter.com/ (never sees form inputs) -->
+  <!-- Shared with psyphin.co.za: prefix paths with the host so this site's "/" is counted separately -->
+  <script>window.goatcounter = { path: function (p) { return location.host + p; } };</script>
+  <script data-goatcounter="https://psyphin.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
