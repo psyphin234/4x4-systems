@@ -2,9 +2,9 @@
 
 Static page for the PsyPhin site, started 2026-10-30: an **interactive, animated 3D drivetrain** showing how four kinds of 4x4 system (and lockers, an LSD, traction control and low range) share the drive on slippery ground. Same "deep space" look as the other tools (copied from `../Ropes_Recovery`: favicons, `logo.jpg`, `js/circuit.js`, and its `css/style.css` minus the ropes-only section). This page's own styles are the "4x4 Systems Explained" and "the 3D view" blocks at the end of style.css.
 
-Repo `psyphin234/4x4-systems` (public), GitHub Pages from `main` / root, since 2026-10-30, for the owner to test. **Test address: https://psyphin.co.za/4x4-systems/** (the default project-page address; no `CNAME` yet). **No psyphin.co.za card yet** (owner, 2026-10-30: wants to test it first). The page carries `noindex` and the amber `.construction` banner. Check builds with `gh api repos/psyphin234/4x4-systems/pages/builds/latest`.
+Repo `psyphin234/4x4-systems` (public), GitHub Pages from `main` / root, since 2026-10-30. Check builds with `gh api repos/psyphin234/4x4-systems/pages/builds/latest`.
 
-**Own address `4x4.psyphin.co.za`** (owner asked for it, 2026-10-30): waiting on the owner to add the Afrihost CNAME `4x4` → `psyphin234.github.io` (it didn't resolve on 2026-10-30). Only once it resolves: set the custom domain in the repo's Pages settings, `git pull` the `CNAME` file GitHub commits, then turn on Enforce HTTPS once the certificate is issued. Setting the domain before the DNS works would break the test link. The canonical/OG tags already point at `https://4x4.psyphin.co.za/`.
+**Address: https://4x4.psyphin.co.za/** since 2026-10-30: the Afrihost CNAME `4x4` → `psyphin234.github.io` (added by the owner), the custom domain set in the repo's Pages settings (GitHub committed the `CNAME` file) and Enforce HTTPS on. The canonical/OG tags already point there. The old test link https://psyphin.co.za/4x4-systems/ still served the page the same day. **No psyphin.co.za card yet** (owner, 2026-10-30: wants to test it first). The page carries `noindex` and the amber `.construction` banner.
 
 ## Layout (owner, 2026-10-30)
 
