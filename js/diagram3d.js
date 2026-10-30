@@ -87,7 +87,7 @@ window.SYS_DIAGRAM = (function () {
   const rimMat = new T.MeshStandardMaterial({ color: 0x9aa6c2, metalness: 0.85, roughness: 0.25 });
 
   // Shapes shared with the diff demo (js/shapes3d.js).
-  const { glass, rod, gear, coneGear, ringGear, along, collarMesh } = window.SYS_SHAPES;
+  const { glass, rod, gear, coneGear, ringGear, along, collarMesh, bevel: BEVEL } = window.SYS_SHAPES;
 
   // Register something that turns about its own Y axis at the speed of `name`.
   // Its orientation moves to a holder and only the spin stays on the object:
@@ -542,11 +542,13 @@ window.SYS_DIAGRAM = (function () {
       carrier.add(h);
       spiders.push(sg);
     });
+    let ring = null;
     if (ringSide) {
       const ringMat = reg(prefix + "Ring", flowMat());
       const h = new T.Group();
       if (ringSide < 0) h.rotation.x = Math.PI;
-      h.add(coneGear(76, 0.13, 0.19, 41, ringMat));
+      ring = coneGear(BEVEL.ringAngle, 0.13, 0.19, BEVEL.ringTeeth, ringMat);
+      h.add(ring);
       ringMat.side = T.DoubleSide;
       const web = new T.Mesh(new T.RingGeometry(0.1, 0.132, 40), ringMat); // the ring's flange, bolted to the carrier
       web.rotation.x = -Math.PI / 2;
@@ -564,7 +566,7 @@ window.SYS_DIAGRAM = (function () {
       g.add(h);
       sides.push(sg);
     });
-    return { group: g, carrier: carrier, spiders: spiders, plus: sides[0], minus: sides[1] };
+    return { group: g, carrier: carrier, spiders: spiders, plus: sides[0], minus: sides[1], ring: ring };
   }
 
   // Multi-mode (SSII): an open bevel centre diff. The main shaft drives the
@@ -667,11 +669,11 @@ window.SYS_DIAGRAM = (function () {
     const d = bevelDiff(name, ringSide);
     dh.add(d.group);
     g.add(dh);
-    // the pinion: a 14-degree bevel gear whose apex meets the ring gear's
+    // the pinion: a 13.7-degree bevel gear whose apex meets the ring gear's
     const ph = new T.Group();
     ph.rotation.x = toProp * Math.PI / 2; // local Y -> world +Z (rear) or -Z (front)
     const pMat = reg(name + "Prop", flowMat());
-    const pin = coneGear(14, 0.13, 0.19, 10, pMat);
+    const pin = coneGear(BEVEL.pinionAngle, 0.13, 0.19, BEVEL.pinionTeeth, pMat);
     const pShaft = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, PIN_REACH - 0.17, 10), pMat);
     pShaft.position.y = (PIN_REACH + 0.17) / 2;
     pin.add(pShaft);
@@ -1126,8 +1128,8 @@ window.SYS_DIAGRAM = (function () {
     sp.frontCarrier = cF; sp.rearCarrier = cR;
     sp.frontSpiders = (sp["side-fl"] - sp["side-fr"]) / 2;
     sp.rearSpiders = (sp["side-rl"] - sp["side-rr"]) / 2;
-    // props about +z: the pinions are a quarter the ring gear's size (76/14-degree cones)
-    let pF = -4 * cF, pR = -4 * cR;
+    // props about +z: each pinion turns 4.1 times per turn of its ring gear (41:10 teeth)
+    let pF = -BEVEL.ratio * cF, pR = -BEVEL.ratio * cR;
     if (s.centre === "locked") { const m = (pF + pR) / 2; pF = pR = m; }
     sp.front = pF; sp.main = pR;
     sp.frontPinion = -pF; // the front pinion faces backwards
@@ -1170,11 +1172,11 @@ window.SYS_DIAGRAM = (function () {
       const b = axleBits[ax], d = b.d;
       d.carrier.rotation.y = add(ax + "C", sp[ax + "Carrier"]);
       const sp1 = add(ax + "S", sp[ax + "Spiders"]);
-      d.spiders.forEach((g) => { g.rotation.y = sp1; });
+      d.spiders.forEach((g) => { g.rotation.y = sp1 + BEVEL.spiderPhase; }); // half a tooth: teeth in gaps
       const l = ax === "front" ? "fl" : "rl", r = ax === "front" ? "fr" : "rr";
       d.plus.rotation.y = angle["side-" + r] || 0;       // right side gear faces +x
       d.minus.rotation.y = -(angle["side-" + l] || 0);   // left one faces -x
-      b.pin.rotation.y = add(ax + "Pin", sp[ax + "Pinion"]);
+      b.pin.rotation.y = add(ax + "Pin", sp[ax + "Pinion"]) + BEVEL.pinionPhase;
     });
     moveEngine((angle.input || 0) * 1.5);
     // low range
@@ -1195,7 +1197,7 @@ window.SYS_DIAGRAM = (function () {
     const cd = tcGroups.cd;
     cd.carrier.rotation.y = -(angle.centreIn || 0);
     const cs = add("cdS", sp.cdSpiders);
-    cd.spiders.forEach((g) => { g.rotation.y = cs; });
+    cd.spiders.forEach((g) => { g.rotation.y = cs + BEVEL.spiderPhase; });
     cd.plus.rotation.y = -(angle.front || 0);  // back side gear: the sprocket
     cd.minus.rotation.y = angle.main || 0;     // front side gear: the rear output
     tcGroups.bevelCollar.rotation.y = -(angle.centreIn || 0);
@@ -1484,5 +1486,6 @@ window.SYS_DIAGRAM = (function () {
   // step(): draw one frame dt seconds on (for tests and screenshots).
   function step(dt) { if (cam.goal) { cam.t = 1; stepCamera(0); } frame(dt); }
 
-  return { init: init, show: show, focus: focus, step: step };
+  // inspect(): the axle diffs, for the meshing check in dd.tmp.html.
+  return { init: init, show: show, focus: focus, step: step, inspect: () => ({ axles: axleBits, cd: tcGroups.cd }) };
 })();

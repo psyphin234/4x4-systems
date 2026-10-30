@@ -8,13 +8,14 @@
 
    Built in three.js's own space, facing +z: the left wheel is at +x, so a
    camera behind the axle sees the left wheel on the left. The gear speeds
-   follow the same rules as the rear axle in diagram3d.js (ring gear 76 and
-   pinion 14 degrees, 4:1; spiders turn at half the side gears' difference). */
+   follow the same rules as the rear axle in diagram3d.js (ring and pinion
+   41:10, spiders at half the side gears' difference; SYS_SHAPES.bevel). */
 window.SYS_DIFFDEMO = (function () {
   "use strict";
 
   const T = window.THREE;
   const S3 = window.SYS_SHAPES;
+  const BEVEL = S3.bevel;
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const R = 0.42;           // wheel radius
@@ -107,7 +108,7 @@ window.SYS_DIFFDEMO = (function () {
     const ringMat = mat("ring");
     ringMat.side = T.DoubleSide;
     const rh = new T.Group();
-    rh.add(S3.coneGear(76, 0.13, 0.19, 41, ringMat));
+    rh.add(S3.coneGear(BEVEL.ringAngle, 0.13, 0.19, BEVEL.ringTeeth, ringMat));
     const web = new T.Mesh(new T.RingGeometry(0.1, 0.132, 40), ringMat);
     web.rotation.x = -Math.PI / 2;
     web.position.y = 0.05;
@@ -127,7 +128,7 @@ window.SYS_DIFFDEMO = (function () {
     const ph = new T.Group();
     ph.rotation.x = Math.PI / 2;
     const pMat = mat("pinion");
-    const pinion = S3.coneGear(14, 0.13, 0.19, 10, pMat);
+    const pinion = S3.coneGear(BEVEL.pinionAngle, 0.13, 0.19, BEVEL.pinionTeeth, pMat);
     const shaft = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, 0.42, 12), pMat);
     shaft.position.y = 0.19 + 0.21;
     pinion.add(shaft);
@@ -171,6 +172,7 @@ window.SYS_DIFFDEMO = (function () {
       scene.add(h);
     });
 
+    bits.ring = rh.children[0];
     bits.carrier = carrier; bits.spiders = spiders; bits.sideL = sideL; bits.sideR = sideR;
     bits.pinion = pinion; bits.lsd = lsd; bits.collar = collar;
   }
@@ -409,10 +411,13 @@ window.SYS_DIFFDEMO = (function () {
   function frame(dt) {
     time += dt;
     const r = result;
-    // speeds (rad/s): rolling along, or a wheel spinning with the other still
+    // speeds (rad/s): rolling along, or a wheel spinning with the other still.
+    // Kept slow enough that no gear passes more than about 14 teeth a second
+    // (a quarter tooth a frame at 60 fps): faster, the teeth strobe and seem to
+    // stand still or run backwards.
     const goal = { l: 0, r: 0 };
     if (!reduceMotion) {
-      const base = r.moves ? 1.6 : 4.5;
+      const base = r.moves ? 1.2 : 2.2;
       goal.l = r.speed.l * base;
       goal.r = r.speed.r * base;
     }
@@ -424,15 +429,15 @@ window.SYS_DIFFDEMO = (function () {
     const c = (speed.l + speed.r) / 2;
     add("c", c);
     add("sp", (speed.r - speed.l) / 2); // the spiders: half the difference
-    add("p", -4 * c);                    // the pinion: 4:1
+    add("p", -BEVEL.ratio * c);          // the pinion: 41:10 teeth, 4.1 turns per turn of the ring
     bits.wheell.spinner.rotation.x = angle.l;
     bits.wheelr.spinner.rotation.x = angle.r;
     spin.forEach((s) => { s.obj.rotation.y = angle[s.key] * s.factor; });
     bits.carrier.rotation.y = angle.c;
-    bits.spiders.forEach((g) => { g.rotation.y = angle.sp; });
+    bits.spiders.forEach((g) => { g.rotation.y = angle.sp + BEVEL.spiderPhase; }); // half a tooth: teeth in gaps
     bits.sideL.rotation.y = angle.l;   // faces +x
     bits.sideR.rotation.y = -angle.r;  // faces -x
-    bits.pinion.rotation.y = angle.p;
+    bits.pinion.rotation.y = angle.p + BEVEL.pinionPhase;
     // the locker's collar slides in against the carrier when locked
     const cx = result.type === "locked" ? -0.105 : -0.17;
     bits.collar.position.x += (cx - bits.collar.position.x) * Math.min(1, dt * 8 || 1);
@@ -553,5 +558,6 @@ window.SYS_DIFFDEMO = (function () {
   // step(): one frame dt seconds on (for screenshots).
   function step(dt) { frame(dt); }
 
-  return { init: init, show: show, step: step };
+  // inspect(): the gears, for the meshing check in dd.tmp.html.
+  return { init: init, show: show, step: step, inspect: () => bits };
 })();

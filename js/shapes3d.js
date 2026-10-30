@@ -53,8 +53,9 @@ window.SYS_SHAPES = (function () {
   // A bevel gear on a cone whose apex is the local origin and whose axis is
   // local Y: alpha = the pitch cone's half-angle, the teeth run from r1 to r2
   // along the cone. Two bevel gears mesh when their apexes meet and their
-  // angles add up to 90 degrees: 45 + 45 for spider and side gears, 76 + 14
-  // for a ring gear (teeth on its face) and its pinion (a small steep cone).
+  // angles add up to 90 degrees: 45 + 45 for spider and side gears, 76.3 +
+  // 13.7 for a ring gear (teeth on its face) and its pinion (a small steep
+  // cone); see `bevel` below.
   function coneGear(alphaDeg, r1, r2, teeth, mat) {
     const a = (alphaDeg * Math.PI) / 180, sa = Math.sin(a), ca = Math.cos(a);
     const g = new T.Group();
@@ -118,5 +119,26 @@ window.SYS_SHAPES = (function () {
     return g;
   }
 
-  return { glass: glass, rod: rod, gear: gear, coneGear: coneGear, ringGear: ringGear, along: along, collarMesh: collarMesh };
+  // The axle diffs' bevel gears, shared so both views mesh the same way
+  // (rechecked 2026-10-30 after the owner saw the teeth drift):
+  // - ring and pinion: 41 and 10 teeth, so the pinion turns 4.1 times per turn
+  //   of the ring; their cone angles follow from that (tan = 41 / 10), so the
+  //   teeth are the same size on both;
+  // - spider and side gears: 12 teeth each on 45-degree cones, 1:1;
+  // - phases: as built, every spider tooth sat in a side gear's tooth instead of
+  //   its gap, and the pinion was a quarter tooth out. Turning each spider half
+  //   a tooth (15 degrees) and the pinion a quarter (9 degrees) puts every tooth
+  //   in a gap, and the speeds keep it there.
+  const RING_TEETH = 41, PINION_TEETH = 10;
+  const RING_ANGLE = (Math.atan(RING_TEETH / PINION_TEETH) * 180) / Math.PI; // 76.3
+  const bevel = {
+    ringTeeth: RING_TEETH, pinionTeeth: PINION_TEETH,
+    ratio: RING_TEETH / PINION_TEETH,
+    ringAngle: RING_ANGLE, pinionAngle: 90 - RING_ANGLE,
+    sideTeeth: 12,
+    spiderPhase: Math.PI / 12,
+    pinionPhase: (2 * Math.PI * 0.25) / PINION_TEETH
+  };
+
+  return { glass: glass, rod: rod, gear: gear, coneGear: coneGear, ringGear: ringGear, along: along, collarMesh: collarMesh, bevel: bevel };
 })();
