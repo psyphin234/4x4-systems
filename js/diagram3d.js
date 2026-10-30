@@ -29,8 +29,8 @@ window.SYS_DIAGRAM = (function () {
   const FD = new T.Vector3(0.18, AY, FZ), RD = new T.Vector3(0, AY, RZ); // diff centres
   const MY = 0.66;                     // transfer case main shaft height
   const TCZ = -0.45;                   // transfer case centre
-  const FOUT = new T.Vector3(0.28, 0.40, -0.62); // front output sprocket
-  const CHAIN_Z = -0.62;
+  const FOUT = new T.Vector3(0.28, 0.40, -0.52); // front output sprocket
+  const CHAIN_Z = -0.52;
   const WHEEL_POS = { fl: [-WX, FZ], fr: [WX, FZ], rl: [-WX, RZ], rr: [WX, RZ] };
 
   const COL = {
@@ -78,7 +78,7 @@ window.SYS_DIAGRAM = (function () {
     });
   }
 
-  const steel = new T.MeshStandardMaterial({ color: 0x3b4560, metalness: 0.75, roughness: 0.38, transparent: true });
+  const steel = new T.MeshStandardMaterial({ color: 0x5a6788, metalness: 0.75, roughness: 0.38, transparent: true, opacity: 0.35, depthWrite: false });
   // The frame, springs and shocks fade when zoomed in, so they don't hide the gears.
   const chassisMats = [steel];
   const rubber = new T.MeshStandardMaterial({ color: 0x15181f, metalness: 0.05, roughness: 0.92 });
@@ -109,38 +109,87 @@ window.SYS_DIAGRAM = (function () {
     return m;
   }
 
-  // A spur or bevel gear: a disc with teeth round the rim, turning about its
-  // local Y axis. bevel: teeth leaning in, like a ring gear or spider gear.
-  function gear(radius, width, teeth, mat, bevel) {
+  // A spur gear: a disc with straight teeth round the rim, axis = local Y.
+  function gear(radius, width, teeth, mat) {
     const g = new T.Group();
-    const body = new T.Mesh(new T.CylinderGeometry(radius * (bevel ? 0.92 : 0.96), radius, width, 28), mat);
-    g.add(body);
-    const tw = (2 * Math.PI * radius) / teeth * 0.5;
-    const toothGeo = new T.BoxGeometry(tw, width * (bevel ? 0.9 : 1), radius * 0.16);
-    const inst = new T.InstancedMesh(toothGeo, mat, teeth);
+    g.add(new T.Mesh(new T.CylinderGeometry(radius * 0.94, radius * 0.94, width, 32), mat));
+    const tw = ((2 * Math.PI * radius) / teeth) * 0.5;
+    const inst = new T.InstancedMesh(new T.BoxGeometry(tw, width, radius * 0.16), mat, teeth);
     const o = new T.Object3D();
     for (let i = 0; i < teeth; i++) {
       const a = (i / teeth) * Math.PI * 2;
-      o.position.set(Math.cos(a) * radius * 1.05, 0, Math.sin(a) * radius * 1.05);
-      o.rotation.set(0, -a + Math.PI / 2, bevel ? 0.35 : 0);
+      o.position.set(Math.cos(a) * radius, 0, Math.sin(a) * radius);
+      o.rotation.set(0, -a + Math.PI / 2, 0);
       o.updateMatrix();
       inst.setMatrixAt(i, o.matrix);
     }
     g.add(inst);
-    g.add(new T.Mesh(new T.CylinderGeometry(radius * 0.25, radius * 0.25, width * 1.4, 12), mat)); // hub
+    g.add(new T.Mesh(new T.CylinderGeometry(radius * 0.28, radius * 0.28, width * 1.5, 12), mat)); // hub
     return g;
   }
 
-  // Point a group's local Y axis along a world axis ("x" or "z").
+  // A bevel gear on a cone whose apex is the local origin and whose axis is
+  // local Y: alpha = the pitch cone's half-angle, the teeth run from r1 to r2
+  // along the cone. Two bevel gears mesh when their apexes meet and their
+  // angles add up to 90 degrees: 45 + 45 for spider and side gears, 76 + 14
+  // for a ring gear (teeth on its face) and its pinion (a small steep cone).
+  function coneGear(alphaDeg, r1, r2, teeth, mat) {
+    const a = (alphaDeg * Math.PI) / 180, sa = Math.sin(a), ca = Math.cos(a);
+    const g = new T.Group();
+    const body = new T.Mesh(new T.CylinderGeometry(r2 * sa * 0.97, r1 * sa * 0.97, Math.max(0.006, (r2 - r1) * ca), 36), mat);
+    body.position.y = ((r1 + r2) / 2) * ca;
+    g.add(body);
+    const rm = ((r1 + r2) / 2) * sa;
+    const depth = Math.max(0.008, rm * 0.18);
+    const inst = new T.InstancedMesh(new T.BoxGeometry(depth, r2 - r1, ((Math.PI * rm) / teeth) * 0.95), mat, teeth);
+    const m = new T.Matrix4();
+    for (let i = 0; i < teeth; i++) {
+      const th = (i / teeth) * Math.PI * 2, c = Math.cos(th), s = Math.sin(th);
+      const n = new T.Vector3(ca * c, -sa, ca * s);   // out of the cone's surface
+      const gd = new T.Vector3(sa * c, ca, sa * s);   // along the cone, away from the apex
+      const t = new T.Vector3(-s, 0, c);              // round the cone
+      m.makeBasis(n, gd, t);
+      const p = gd.clone().multiplyScalar((r1 + r2) / 2).addScaledVector(n, depth * 0.35);
+      m.setPosition(p);
+      inst.setMatrixAt(i, m);
+    }
+    g.add(inst);
+    return g;
+  }
+
+  // An internal (ring) gear: teeth pointing in, axis = local Y.
+  function ringGear(rIn, width, teeth, mat) {
+    const g = new T.Group();
+    g.add(new T.Mesh(new T.CylinderGeometry(rIn + 0.022, rIn + 0.022, width, 48, 1, true), mat));
+    const tw = ((2 * Math.PI * rIn) / teeth) * 0.5;
+    const inst = new T.InstancedMesh(new T.BoxGeometry(tw, width, 0.016), mat, teeth);
+    const o = new T.Object3D();
+    for (let i = 0; i < teeth; i++) {
+      const a = (i / teeth) * Math.PI * 2;
+      o.position.set(Math.cos(a) * (rIn + 0.006), 0, Math.sin(a) * (rIn + 0.006));
+      o.rotation.set(0, -a + Math.PI / 2, 0);
+      o.updateMatrix();
+      inst.setMatrixAt(i, o.matrix);
+    }
+    g.add(inst);
+    return g;
+  }
+
+  // Point an object's local Y axis along a world axis ("x" or "z").
   function along(obj, axis) {
-    if (axis === "x") obj.rotation.z = Math.PI / 2;
-    if (axis === "z") obj.rotation.x = Math.PI / 2;
+    if (axis === "x") obj.rotation.z = Math.PI / 2;  // local Y -> world -X
+    if (axis === "z") obj.rotation.x = Math.PI / 2;  // local Y -> world +Z
     return obj;
   }
 
   // Register something that turns about its own Y axis at the speed of `name`.
+  // Its orientation moves to a holder and only the spin stays on the object:
+  // with both on one object, three.js would turn it about the parent's Y axis
+  // (Euler order XYZ), not its own, and it would tumble.
   function turns(name, obj, factor) {
     const holder = new T.Group();
+    holder.rotation.copy(obj.rotation);
+    obj.rotation.set(0, 0, 0);
     holder.add(obj);
     (spin[name] = spin[name] || []).push({ obj: obj, factor: factor || 1 });
     return holder;
@@ -157,37 +206,34 @@ window.SYS_DIAGRAM = (function () {
   }
 
   // ---------------------------------------------------------------- the chassis
+  // Kept light (owner, 2026-10-30: the frame was hiding the drivetrain): two
+  // see-through rails with a crossmember at each end, springs and shocks.
   function buildChassis() {
-    // ladder frame
     [-0.55, 0.55].forEach((x) => {
-      const rail = new T.Mesh(new T.BoxGeometry(0.08, 0.16, 4.2), steel);
+      const rail = new T.Mesh(new T.BoxGeometry(0.06, 0.12, 4.2), steel);
       rail.position.set(x, 0.95, -0.05);
-      rail.castShadow = true;
       rig.add(rail);
     });
-    [1.9, 0.05, -1.0, -2.1].forEach((z) => {
-      const cm = new T.Mesh(new T.BoxGeometry(1.1, 0.07, 0.07), steel);
+    [1.95, -2.1].forEach((z) => {
+      const cm = new T.Mesh(new T.BoxGeometry(1.1, 0.06, 0.06), steel);
       cm.position.set(0, 0.95, z);
-      cm.castShadow = true;
       rig.add(cm);
     });
-    // coil springs and shocks at each wheel
     const helix = new T.Curve();
     helix.getPoint = function (t) {
       const a = t * Math.PI * 2 * 5.5;
-      return new T.Vector3(Math.cos(a) * 0.075, 0.5 + t * 0.37, Math.sin(a) * 0.075);
+      return new T.Vector3(Math.cos(a) * 0.075, 0.5 + t * 0.39, Math.sin(a) * 0.075);
     };
-    const springGeo = new T.TubeGeometry(helix, 160, 0.012, 6, false);
+    const springGeo = new T.TubeGeometry(helix, 160, 0.011, 6, false);
     const springMat = new T.MeshStandardMaterial({ color: 0xc8d2ea, metalness: 0.7, roughness: 0.3, transparent: true });
     const shockMat = new T.MeshStandardMaterial({ color: 0xffc857, metalness: 0.4, roughness: 0.4, transparent: true });
     chassisMats.push(springMat, shockMat);
     [[-0.55, FZ], [0.55, FZ], [-0.55, RZ], [0.55, RZ]].forEach(([x, z]) => {
       const sp = new T.Mesh(springGeo, springMat);
       sp.position.set(x, 0, z);
-      sp.castShadow = true;
       rig.add(sp);
-      const shock = new T.Mesh(new T.CylinderGeometry(0.025, 0.025, 0.42, 10), shockMat);
-      shock.position.set(x + (x < 0 ? 0.13 : -0.13), 0.7, z + 0.12);
+      const shock = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, 0.42, 10), shockMat);
+      shock.position.set(x + (x < 0 ? 0.13 : -0.13), 0.7, z + (z > 0 ? 0.14 : -0.14));
       shock.rotation.z = x < 0 ? -0.25 : 0.25;
       rig.add(shock);
     });
@@ -196,98 +242,125 @@ window.SYS_DIAGRAM = (function () {
   // ---------------------------------------------------------------- engine, gearbox
   function buildEngine() {
     const eng = new T.Group();
-    const block = glass(new T.BoxGeometry(0.62, 0.52, 0.86), 0x4cc9ff, 0.2);
-    eng.add(block);
+    eng.add(glass(new T.BoxGeometry(0.62, 0.52, 0.86), 0x4cc9ff, 0.16));
     const coreMat = reg("engine", flowMat());
     for (let i = 0; i < 4; i++) {
       const cyl = new T.Mesh(new T.CylinderGeometry(0.075, 0.075, 0.3, 16), coreMat);
       cyl.position.set(0, 0.04, -0.3 + i * 0.2);
       eng.add(cyl);
     }
-    const crank = turns("input", along(new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.9, 10), coreMat), "z"), 1);
+    const crank = turns("input", along(new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.9, 10), coreMat), "z"));
     crank.position.y = -0.18;
     eng.add(crank);
     eng.position.set(0, 0.88, 0.75);
     rig.add(eng);
     label("ENGINE", new T.Vector3(0, 1.25, 0.75));
 
-    const gb = glass(new T.CylinderGeometry(0.2, 0.15, 0.48, 20), 0x4cc9ff, 0.16);
+    const gb = glass(new T.CylinderGeometry(0.2, 0.15, 0.48, 20), 0x4cc9ff, 0.12);
     along(gb, "z");
     gb.position.set(0, MY, 0.08);
     rig.add(gb);
-    const gbShaft = turns("input", along(new T.Mesh(new T.CylinderGeometry(0.028, 0.028, 0.6, 10), reg("input", flowMat())), "z"));
+    const gbShaft = turns("input", along(new T.Mesh(new T.CylinderGeometry(0.026, 0.026, 0.6, 10), reg("input", flowMat())), "z"));
     gbShaft.position.set(0, MY, 0.05);
     rig.add(gbShaft);
     label("GEARBOX", new T.Vector3(0, 0.95, 0.1), "tag3d--small");
   }
 
   // ---------------------------------------------------------------- transfer case
+  // Front to back along the main shaft (z):
+  //   high gear on the input (-0.27), meshed with the countershaft below;
+  //   range collar (-0.31 high / -0.39 low);
+  //   low gear (-0.43), free on the shaft, driven by the countershaft's small gear;
+  //   chain drive sprocket (-0.52), free on the shaft, chain to the front output;
+  //   the centre unit (-0.64); rear output to the back.
+  // Gear sizes mesh: 0.085 + 0.13 = 0.215 = the countershaft's offset, so
+  // low range here is (0.13 / 0.085)^2 = 2.34 : 1.
+  const LOW_DRAWN = (0.085 / 0.13) * (0.085 / 0.13);
+  const CU_Z = -0.64;
   let tcGroups = {};
   function buildTransferCase() {
     const tc = new T.Group();
     rig.add(tc);
-    const housing = glass(new T.BoxGeometry(0.82, 0.64, 0.6), 0x9fd8ff, 0.1);
-    housing.position.set(0.1, 0.57, TCZ - 0.05);
+    const housing = glass(new T.BoxGeometry(0.82, 0.64, 0.66), 0x9fd8ff, 0.08);
+    housing.position.set(0.1, 0.57, -0.5);
     tc.add(housing);
     tcLabel = label("TRANSFER CASE", new T.Vector3(0.15, 0.2, TCZ + 0.1), "tag3d--tc");
 
-    // main shaft: input part (to the range collar) and output part (to the rear)
+    // input shaft and high gear
     const inMat = reg("input", flowMat());
-    const s1 = turns("input", along(new T.Mesh(new T.CylinderGeometry(0.026, 0.026, 0.2, 10), inMat), "z"));
-    s1.position.set(0, MY, -0.25);
+    const s1 = turns("input", along(new T.Mesh(new T.CylinderGeometry(0.026, 0.026, 0.24, 10), inMat), "z"));
+    s1.position.set(0, MY, -0.17);
     tc.add(s1);
-    const mainMat = reg("main", flowMat());
-    const s2 = turns("main", along(new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.55, 10), mainMat), "z"));
-    s2.position.set(0, MY, -0.62);
-    tc.add(s2);
-
-    // range set: high gear on the input, low gear on the main shaft, a countershaft below
-    const hiGear = turns("input", along(gear(0.085, 0.04, 16, reg("rangeHi", flowMat())), "z"));
-    hiGear.position.set(0, MY, -0.27);
-    tc.add(hiGear);
-    const loGear = turns("main", along(gear(0.13, 0.04, 24, reg("rangeLo", flowMat())), "z"));
-    loGear.position.set(0, MY, -0.43);
-    tc.add(loGear);
+    const hi = turns("input", along(gear(0.085, 0.04, 16, reg("rangeHi", flowMat())), "z"));
+    hi.position.set(0, MY, -0.27);
+    tc.add(hi);
+    // countershaft: big gear under the high gear, small gear under the low gear
     const cMat = reg("counter", flowMat());
     const cs = new T.Group();
-    cs.add(along(gear(0.13, 0.04, 24, cMat), "z"));
-    const cs2 = along(gear(0.085, 0.04, 16, cMat), "z");
-    cs2.position.z = -0.16;
-    cs.add(cs2);
-    const csShaft = along(new T.Mesh(new T.CylinderGeometry(0.022, 0.022, 0.24, 10), cMat), "z");
-    csShaft.position.z = -0.08;
-    cs.add(csShaft);
-    const csHolder = turns("counter", cs);
-    csHolder.position.set(0, MY - 0.215, -0.27);
-    tc.add(csHolder);
-    // range collar: slides to the high gear (H) or the low gear (L)
-    const collar = along(new T.Mesh(new T.CylinderGeometry(0.055, 0.055, 0.04, 20), reg("rangeCollar", flowMat())), "z");
-    collar.position.set(0, MY, -0.35);
-    tc.add(collar);
-    tcGroups.rangeCollar = collar;
-    label("HI / LO RANGE", new T.Vector3(-0.32, 0.86, -0.35), "tag3d--small");
+    const cBig = gear(0.13, 0.04, 24, cMat);
+    const cSmall = gear(0.085, 0.04, 16, cMat);
+    cSmall.position.y = 0.16; // further back along the countershaft (its local Y runs to world -Z)
+    cs.add(cBig, cSmall, new T.Mesh(new T.CylinderGeometry(0.02, 0.02, 0.2, 10), cMat));
+    cs.children[2].position.y = 0.08;
+    cs.rotation.x = -Math.PI / 2; // local Y -> world -Z, so "down the shaft" runs back
+    const csH = turns("counter", cs, -1);
+    csH.position.set(0, MY - 0.215, -0.27);
+    tc.add(csH);
+    // low gear, free on the shaft
+    const lo = turns("lowGear", along(gear(0.13, 0.04, 24, reg("rangeLo", flowMat())), "z"));
+    lo.position.set(0, MY, -0.43);
+    tc.add(lo);
+    // the shaft from the range collar to the centre unit
+    const s2 = turns("centreIn", along(new T.Mesh(new T.CylinderGeometry(0.024, 0.024, 0.4, 10), reg("centreIn", flowMat())), "z"));
+    s2.position.set(0, MY, -0.47);
+    tc.add(s2);
+    // range collar: slides onto the high gear's dogs (H) or the low gear's (L)
+    const rc = turns("centreIn", along(collarMesh(0.05, reg("rangeCollar", flowMat())), "z"));
+    rc.position.set(0, MY, -0.31);
+    tc.add(rc);
+    tcGroups.rangeCollar = rc;
+    label("HI / LO RANGE", new T.Vector3(-0.3, 0.9, -0.35), "tag3d--small");
 
-    // chain to the front output
-    const dMat = reg("chain", flowMat());
-    const ds = turns("chainDrive", along(gear(0.1, 0.035, 20, dMat), "z"));
+    // chain: drive sprocket on the main shaft, driven sprocket on the front output
+    const chMat = reg("chain", flowMat());
+    const ds = turns("front", along(gear(0.1, 0.035, 20, chMat), "z"));
     ds.position.set(0, MY, CHAIN_Z);
     tc.add(ds);
-    const fs = turns("front", along(gear(0.1, 0.035, 20, dMat), "z"));
+    const fs = turns("front", along(gear(0.1, 0.035, 20, chMat), "z"));
     fs.position.copy(FOUT);
     tc.add(fs);
-    chain = buildChain(dMat);
+    chain = buildChain(chMat);
     tc.add(chain.group);
-    const fShaft = turns("front", along(new T.Mesh(new T.CylinderGeometry(0.026, 0.026, 0.5, 10), reg("frontOut", flowMat())), "z"));
-    fShaft.position.set(FOUT.x, FOUT.y, FOUT.z + 0.25);
+    const fShaft = turns("front", along(new T.Mesh(new T.CylinderGeometry(0.026, 0.026, 0.4, 10), reg("frontOut", flowMat())), "z"));
+    fShaft.position.set(FOUT.x, FOUT.y, FOUT.z + 0.2);
     tc.add(fShaft);
+    label("CHAIN TO FRONT", new T.Vector3(0.36, 0.25, CHAIN_Z), "tag3d--small");
 
-    // the centre units; only the one for the chosen system shows
+    // rear output
+    const s3 = turns("main", along(new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.38, 10), reg("main", flowMat())), "z"));
+    s3.position.set(0, MY, -0.76);
+    tc.add(s3);
+
     tcGroups.chain = buildPartTimeCentre(tc);
     tcGroups.planetary = buildPlanetary(tc);
     tcGroups.bevel = buildBevelCentre(tc);
     tcGroups.clutch = buildClutch(tc);
+    tcGroups.cuLabel = label("", new T.Vector3(-0.25, 0.86, CU_Z - 0.05), "tag3d--small");
   }
   let tcLabel = null;
+
+  // A sliding dog collar: a short sleeve with dog teeth on both faces.
+  function collarMesh(r, mat) {
+    const g = new T.Group();
+    g.add(new T.Mesh(new T.CylinderGeometry(r, r, 0.03, 24), mat));
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const d = new T.Mesh(new T.BoxGeometry(0.018, 0.05, 0.018), mat);
+      d.position.set(Math.cos(a) * r * 0.75, 0, Math.sin(a) * r * 0.75);
+      g.add(d);
+    }
+    return g;
+  }
 
   // The chain: links running round both sprockets.
   function buildChain(mat) {
@@ -314,6 +387,7 @@ window.SYS_DIAGRAM = (function () {
     }
     return {
       group: g,
+      radius: r,
       move(offset) {
         for (let i = 0; i < N; i++) {
           const p = at(offset + (i / N) * L), q = at(offset + (i / N) * L + 0.01);
@@ -324,96 +398,155 @@ window.SYS_DIAGRAM = (function () {
     };
   }
 
-  // Part-time: a 2-4 collar locks the chain's drive sprocket to the main shaft.
+  // Part-time: no centre diff. The 2-4 collar on the main shaft slides onto
+  // the drive sprocket's dogs (4H/4L), joining the front to the rear.
   function buildPartTimeCentre(tc) {
     const g = new T.Group();
-    const c = along(new T.Mesh(new T.CylinderGeometry(0.06, 0.06, 0.04, 20), reg("centreLock", flowMat())), "z");
-    c.position.set(0, MY, -0.55);
+    const c = turns("main", along(collarMesh(0.06, reg("centreLock", flowMat())), "z"));
+    c.position.set(0, MY, -0.59);
     g.add(c);
     tcGroups.centreCollar = c;
     tc.add(g);
     return g;
   }
 
-  // Full-time: a planetary centre diff (carrier from the input, sun to the
-  // front chain, ring to the rear), with the CDL collar.
+  // Full-time: a planetary centre diff. The input drives the planet carrier;
+  // the planets drive the sun (to the front, through the chain) and the ring
+  // gear (to the rear). Sizes mesh: sun 0.045 + planet 0.045 = 0.09 orbit,
+  // ring 0.135 inside. The CDL collar locks the sun to the carrier.
+  const PL = { sun: 0.045, planet: 0.045, orbit: 0.09, ring: 0.135 };
   function buildPlanetary(tc) {
     const g = new T.Group();
-    g.position.set(0, MY, -0.53);
-    const ringMat = reg("main", flowMat());
-    g.add(new T.Mesh(new T.TorusGeometry(0.145, 0.022, 10, 40), ringMat)); // ring gear (round, so it needn't turn)
-    const sun = turns("chainDrive", along(gear(0.045, 0.05, 12, reg("chain", flowMat())), "z"));
+    g.position.set(0, MY, CU_Z);
+    g.rotation.x = Math.PI / 2; // local Y -> world +Z
+    const sun = gear(PL.sun, 0.05, 12, reg("chain", flowMat()));
     g.add(sun);
-    const planetMat = reg("planets", flowMat());
+    const ring = ringGear(PL.ring, 0.05, 36, reg("main", flowMat()));
+    g.add(ring);
     const carrier = new T.Group();
+    const cMat = reg("planets", flowMat());
+    const planets = [];
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2;
-      const p = turns("planetSpin", along(gear(0.042, 0.045, 12, planetMat), "z"));
-      p.position.set(Math.cos(a) * 0.092, Math.sin(a) * 0.092, 0);
+      const p = gear(PL.planet, 0.045, 12, cMat);
+      p.position.set(Math.cos(a) * PL.orbit, 0, Math.sin(a) * PL.orbit);
       carrier.add(p);
+      planets.push(p);
     }
-    const plate = new T.Mesh(new T.RingGeometry(0.03, 0.12, 30), planetMat);
-    plate.position.z = 0.03;
+    const plate = new T.Mesh(new T.CylinderGeometry(0.11, 0.11, 0.008, 36), cMat); // carrier plate, on the input side
+    plate.position.y = 0.035;
     carrier.add(plate);
-    const carrierHolder = new T.Group();
-    carrierHolder.add(carrier);
-    (spin.carrierZ = spin.carrierZ || []).push({ obj: carrier, factor: 1, axisZ: true });
-    g.add(carrierHolder);
-    const cdl = along(new T.Mesh(new T.CylinderGeometry(0.06, 0.06, 0.035, 20), reg("centreLock", flowMat())), "z");
-    cdl.position.z = 0.07;
+    g.add(carrier);
+    // the ring's back plate to the rear output
+    const back = new T.Mesh(new T.CylinderGeometry(PL.ring + 0.02, PL.ring + 0.02, 0.006, 40), new T.MeshStandardMaterial({ color: 0x6b7ea8, transparent: true, opacity: 0.25, depthWrite: false }));
+    back.position.y = -0.035;
+    ring.add(back);
+    const cdl = collarMesh(0.055, reg("centreLock", flowMat()));
+    cdl.position.y = 0.075;
     g.add(cdl);
     tcGroups.cdlCollar = cdl;
+    tcGroups.pl = { sun: sun, ring: ring, carrier: carrier, planets: planets, cdl: cdl };
     tc.add(g);
     return g;
   }
 
-  // Multi-mode (SSII): an open bevel centre diff on the main shaft, locked in 4HLc/4LLc.
+  // A bevel diff, axis = local Y: a carrier (case, cross pin, two spider
+  // gears) between two side gears, all 45-degree bevel gears with one apex.
+  // ringSide: +1 / -1 puts a ring gear on the carrier on that side; 0, none.
+  function bevelDiff(prefix, ringSide) {
+    const g = new T.Group();
+    const carrier = new T.Group();
+    const caseMat = reg(prefix + "Carrier", flowMat());
+    caseMat.transparent = true; caseMat.opacity = 0.28; caseMat.depthWrite = false; caseMat.side = T.DoubleSide;
+    carrier.add(new T.Mesh(new T.CylinderGeometry(0.1, 0.1, 0.15, 32, 1, true), caseMat));
+    const spMat = reg(prefix + "Spider", flowMat());
+    const pin = new T.Mesh(new T.CylinderGeometry(0.011, 0.011, 0.21, 8), spMat);
+    pin.rotation.z = Math.PI / 2; // along local X
+    carrier.add(pin);
+    const spiders = [];
+    [1, -1].forEach((s) => {
+      const h = new T.Group();
+      h.rotation.z = -s * Math.PI / 2; // local Y -> +X or -X
+      const sg = coneGear(45, 0.05, 0.095, 12, spMat);
+      h.add(sg);
+      carrier.add(h);
+      spiders.push(sg);
+    });
+    if (ringSide) {
+      const ringMat = reg(prefix + "Ring", flowMat());
+      const h = new T.Group();
+      if (ringSide < 0) h.rotation.x = Math.PI;
+      h.add(coneGear(76, 0.13, 0.19, 41, ringMat));
+      ringMat.side = T.DoubleSide;
+      const web = new T.Mesh(new T.RingGeometry(0.1, 0.132, 40), ringMat); // the ring's flange, bolted to the carrier
+      web.rotation.x = -Math.PI / 2;
+      web.position.y = 0.05;
+      h.add(web);
+      carrier.add(h);
+    }
+    g.add(carrier);
+    const sides = [];
+    [1, -1].forEach((s) => {
+      const h = new T.Group();
+      if (s < 0) h.rotation.x = Math.PI;
+      const sg = coneGear(45, 0.05, 0.095, 12, reg(prefix + (s > 0 ? "SidePlus" : "SideMinus"), flowMat()));
+      h.add(sg);
+      g.add(h);
+      sides.push(sg);
+    });
+    return { group: g, carrier: carrier, spiders: spiders, plus: sides[0], minus: sides[1] };
+  }
+
+  // Multi-mode (SSII): an open bevel centre diff. The input drives the
+  // carrier; the front side gear drives the chain sprocket, the rear one the
+  // rear output. 4HLc / 4LLc slide a collar that locks it.
   function buildBevelCentre(tc) {
     const g = new T.Group();
-    g.position.set(0, MY, -0.52);
-    const mat = reg("planets", flowMat());
-    const carrier = new T.Group();
-    const cage = new T.Mesh(new T.TorusGeometry(0.1, 0.012, 8, 30), mat);
-    cage.rotation.y = Math.PI / 2;
-    carrier.add(cage);
-    carrier.add(new T.Mesh(new T.CylinderGeometry(0.012, 0.012, 0.2, 8), mat)); // cross pin (along Y)
-    [-1, 1].forEach((s) => {
-      const sp = turns("planetSpin", gear(0.04, 0.03, 10, mat, true));
-      sp.position.y = s * 0.065;
-      if (s < 0) sp.rotation.x = Math.PI;
-      carrier.add(sp);
-    });
-    (spin.carrierZ = spin.carrierZ || []).push({ obj: carrier, factor: 1, axisZ: true });
-    g.add(carrier);
-    const sideF = turns("chainDrive", along(gear(0.05, 0.03, 12, reg("chain", flowMat()), true), "z"));
-    sideF.position.z = -0.06;
-    g.add(sideF);
-    const sideR = turns("main", along(gear(0.05, 0.03, 12, reg("main", flowMat()), true), "z"));
-    sideR.position.z = 0.06;
-    g.add(sideR);
-    const lc = along(new T.Mesh(new T.CylinderGeometry(0.06, 0.06, 0.03, 20), reg("centreLock", flowMat())), "z");
-    lc.position.z = 0.1;
+    g.position.set(0, MY, CU_Z);
+    g.rotation.x = Math.PI / 2; // local Y -> world +Z: the plus side faces forward, to the sprocket
+    const d = bevelDiff("cd", 0);
+    g.add(d.group);
+    const lc = collarMesh(0.055, reg("centreLock", flowMat()));
+    lc.position.y = -0.14;
     g.add(lc);
     tcGroups.bevelCollar = lc;
+    tcGroups.cd = d;
     tc.add(g);
     return g;
   }
 
-  // Multi-mode (TOD): a wet multi-plate clutch between the main shaft and the chain.
+  // Multi-mode (TOD): no diff. Inner plates turn with the rear output, outer
+  // plates with a drum on the chain sprocket; an electromagnet behind clamps
+  // the pack: open (2H), slipping (4A, feeding the front), clamped (4H/4L).
   function buildClutch(tc) {
     const g = new T.Group();
-    g.position.set(0, MY, -0.52);
+    g.position.set(0, MY, CU_Z);
     const plates = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
       const outer = i % 2 === 0;
       const m = reg(outer ? "clutchOuter" : "clutchInner", flowMat());
-      const p = along(new T.Mesh(new T.CylinderGeometry(outer ? 0.13 : 0.115, outer ? 0.13 : 0.115, 0.008, 28), m), "z");
-      g.add(p);
-      plates.push(p);
+      const p = new T.Group();
+      const r = outer ? 0.13 : 0.115;
+      p.add(new T.Mesh(new T.CylinderGeometry(r, r, 0.008, 36), m));
+      // tabs: outer plates on the outside (to the drum), inner on the inside (to the shaft)
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        const tab = new T.Mesh(new T.BoxGeometry(0.022, 0.01, 0.022), m);
+        const rr = outer ? r + 0.008 : 0.04;
+        tab.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
+        p.add(tab);
+      }
+      const h = turns(outer ? "front" : "main", along(p, "z"));
+      g.add(h);
+      plates.push(h);
     }
-    // the electromagnet that clamps the pack, behind it
-    const coil = new T.Mesh(new T.TorusGeometry(0.085, 0.022, 8, 36), new T.MeshStandardMaterial({ color: 0xb87333, metalness: 0.7, roughness: 0.35 }));
-    coil.position.z = 0.075;
+    const drum = new T.Mesh(new T.CylinderGeometry(0.16, 0.16, 0.1, 40, 1, true),
+      new T.MeshStandardMaterial({ color: 0x6b7ea8, transparent: true, opacity: 0.16, depthWrite: false, side: T.DoubleSide }));
+    drum.rotation.x = Math.PI / 2;
+    drum.position.z = 0.02;
+    g.add(drum);
+    const coil = new T.Mesh(new T.TorusGeometry(0.075, 0.022, 8, 36), new T.MeshStandardMaterial({ color: 0xb87333, metalness: 0.7, roughness: 0.35 }));
+    coil.position.z = -0.085;
     g.add(coil);
     tcGroups.plates = plates;
     tc.add(g);
@@ -421,99 +554,84 @@ window.SYS_DIAGRAM = (function () {
   }
 
   // ---------------------------------------------------------------- props and axles
+  // The ring gear sits on the far side of the front diff from the rear one
+  // (front: -x, rear: +x), so both prop shafts turn the same way, as on a
+  // real vehicle. Pinions point at the transfer case.
+  const PIN_REACH = 0.32;
   function buildDriveline() {
-    // rear prop: rear output to the rear diff's pinion
-    const rp = rod(new T.Vector3(0, MY, -0.9), new T.Vector3(0, AY + 0.02, RZ + 0.2), 0.035, reg("rearProp", flowMat()));
+    const rp = rod(new T.Vector3(0, MY, -0.95), new T.Vector3(RD.x, AY, RZ + PIN_REACH), 0.035, reg("rearProp", flowMat()));
     rig.add(rp);
-    // front prop: front output to the front diff's pinion
-    const fp = rod(new T.Vector3(FOUT.x, FOUT.y, FOUT.z + 0.5), new T.Vector3(FD.x, AY + 0.02, FZ - 0.2), 0.032, reg("frontProp", flowMat()));
+    const fp = rod(new T.Vector3(FOUT.x, FOUT.y, FOUT.z + 0.4), new T.Vector3(FD.x, AY, FZ - PIN_REACH), 0.032, reg("frontProp", flowMat()));
     rig.add(fp);
-    // universal joints
-    [[0, MY, -0.9], [0, AY + 0.02, RZ + 0.2], [FOUT.x, FOUT.y, FOUT.z + 0.5], [FD.x, AY + 0.02, FZ - 0.2]].forEach((p, i) => {
-      const uj = new T.Mesh(new T.SphereGeometry(0.05, 12, 10), reg(i < 2 ? "rearProp" : "frontProp", flowMat()));
+    [[0, MY, -0.95, "rearProp"], [RD.x, AY, RZ + PIN_REACH, "rearProp"], [FOUT.x, FOUT.y, FOUT.z + 0.4, "frontProp"], [FD.x, AY, FZ - PIN_REACH, "frontProp"]].forEach((p) => {
+      const uj = new T.Mesh(new T.SphereGeometry(0.045, 12, 10), reg(p[3], flowMat()));
       uj.position.set(p[0], p[1], p[2]);
       rig.add(uj);
     });
-    buildAxle("front", FD, 1);
-    buildAxle("rear", RD, -1);
+    buildAxle("front", FD, -1);
+    buildAxle("rear", RD, 1);
   }
 
-  // An axle: banjo housing, ring and pinion, carrier with spider gears, the
-  // locker's dog collar (and an LSD clutch pack on the rear), half shafts, tubes.
+  // An axle: banjo housing; ring and pinion; the bevel diff; the locker's dog
+  // collar on the side away from the ring (and an LSD clutch pack on the
+  // rear); half shafts inside see-through tubes.
   const axleBits = {};
-  function buildAxle(name, D, dirToProp) {
+  function buildAxle(name, D, ringSide) {
     const g = new T.Group();
     g.position.copy(D);
     rig.add(g);
-    const housing = glass(new T.SphereGeometry(0.22, 24, 16), 0x9fd8ff, 0.1);
-    g.add(housing);
-    // tubes (left and right), see-through so the half shafts show
-    const tubeMat = new T.MeshStandardMaterial({ color: 0x3b4560, metalness: 0.7, roughness: 0.4, transparent: true, opacity: 0.32, depthWrite: false });
+    const toProp = name === "front" ? -1 : 1; // the pinion points at the transfer case
+    g.add(glass(new T.SphereGeometry(0.25, 24, 16), 0x9fd8ff, 0.08));
+    const tubeMat = new T.MeshStandardMaterial({ color: 0x3b4560, metalness: 0.7, roughness: 0.4, transparent: true, opacity: 0.28, depthWrite: false });
     [-1, 1].forEach((s) => {
-      const a = s * 0.2, b = s * (WX - 0.17) - D.x; // from the housing to the hub, in the axle's own space
+      const a = s * 0.22, b = s * (WX - 0.17) - D.x; // housing to hub, in the axle's own space
       const tube = along(new T.Mesh(new T.CylinderGeometry(0.06, 0.06, Math.abs(b - a), 16), tubeMat), "x");
       tube.position.x = (a + b) / 2;
       g.add(tube);
     });
-    // pinion
-    const pin = turns(name + "Prop", along(gear(0.05, 0.08, 10, reg(name + "Prop", flowMat()), true), "z"));
-    pin.position.set(0.05, 0, -dirToProp * 0.13); // on the side the prop shaft comes from
-    g.add(pin);
-    // ring gear and carrier turn together about X
-    const carrier = new T.Group();
-    const ringMat = reg(name + "Ring", flowMat());
-    const ring = along(gear(0.16, 0.035, 34, ringMat, true), "x");
-    ring.position.x = 0.07; // on the far side, so the spider gears and the locker show from the default view
-    carrier.add(ring);
-    const pinMat = reg(name + "Spider", flowMat());
-    carrier.add(new T.Mesh(new T.CylinderGeometry(0.011, 0.011, 0.17, 8), pinMat)); // cross pin along Y
-    const spiders = [];
-    [-1, 1].forEach((s) => {
-      const sp = gear(0.04, 0.03, 10, pinMat, true);
-      const h = new T.Group();
-      h.add(sp);
-      h.position.y = s * 0.06;
-      if (s < 0) h.rotation.x = Math.PI;
-      carrier.add(h);
-      spiders.push(sp);
-    });
-    const carrierHolder = new T.Group();
-    carrierHolder.add(carrier);
-    g.add(carrierHolder);
-    // side gears and half shafts, one per wheel
-    const sides = {};
+    // the diff itself, its axis along the axle (local Y -> world +X)
+    const dh = new T.Group();
+    dh.rotation.z = -Math.PI / 2;
+    const d = bevelDiff(name, ringSide);
+    dh.add(d.group);
+    g.add(dh);
+    // the pinion: a 14-degree bevel gear whose apex meets the ring gear's
+    const ph = new T.Group();
+    ph.rotation.x = toProp * Math.PI / 2; // local Y -> world +Z (rear) or -Z (front)
+    const pMat = reg(name + "Prop", flowMat());
+    const pin = coneGear(14, 0.13, 0.19, 10, pMat);
+    const pShaft = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, PIN_REACH - 0.17, 10), pMat);
+    pShaft.position.y = (PIN_REACH + 0.17) / 2;
+    pin.add(pShaft);
+    ph.add(pin);
+    g.add(ph);
+    // half shafts, from the side gears out to the hubs
     const left = name === "front" ? "fl" : "rl", right = name === "front" ? "fr" : "rr";
     [[left, -1], [right, 1]].forEach(([w, s]) => {
-      const sg = along(gear(0.045, 0.03, 12, reg("half-" + w, flowMat()), true), "x");
-      if (s < 0) sg.rotation.z = -Math.PI / 2;
-      const sgh = turns("wheel-" + w, sg, -s);
-      sgh.position.x = s * 0.065;
-      g.add(sgh);
-      const a = s * 0.08, b = s * WX - D.x;
+      const a = s * 0.06, b = s * WX - D.x;
       const shaft = along(new T.Mesh(new T.CylinderGeometry(0.022, 0.022, Math.abs(b - a), 10), reg("half-" + w, flowMat())), "x");
-      const sh = turns("wheel-" + w, shaft, -1);
+      const sh = turns("side-" + w, shaft, -1); // along() points local Y at -X, so turn it backwards
       sh.position.x = (a + b) / 2;
       g.add(sh);
-      sides[w] = sgh;
     });
-    // locker: a dog collar on the right side gear, slides in when locked
-    const collar = along(new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.035, 20), reg(name + "Lock", flowMat())), "x");
-    collar.position.x = -0.16;
+    // locker: dog collar on the half shaft on the side away from the ring
+    const cs = -ringSide;
+    const collar = turns("side-" + (cs < 0 ? left : right), along(collarMesh(0.045, reg(name + "Lock", flowMat())), "x"), -1);
+    collar.position.x = cs * 0.17;
     g.add(collar);
-    // LSD clutch packs (rear only)
     const lsd = new T.Group();
     if (name === "rear") {
       [-1, 1].forEach((s) => {
         for (let i = 0; i < 3; i++) {
-          const d = along(new T.Mesh(new T.CylinderGeometry(0.055, 0.055, 0.006, 20), reg("rearLsd", flowMat())), "x");
-          d.position.x = s * (0.095 + i * 0.012);
-          lsd.add(d);
+          const disc = along(new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.005, 24), reg("rearLsd", flowMat())), "x");
+          disc.position.x = s * (0.07 + i * 0.007);
+          lsd.add(disc);
         }
       });
       g.add(lsd);
     }
-    axleBits[name] = { carrier: carrier, spiders: spiders, collar: collar, lsd: lsd, sides: sides };
-    axleBits[name].label = label(name.toUpperCase() + " DIFF", new T.Vector3(D.x, D.y + 0.32, D.z));
+    axleBits[name] = { d: d, collar: collar, collarSide: cs, lsd: lsd, pin: pin, toProp: toProp, ringSide: ringSide };
+    axleBits[name].label = label(name.toUpperCase() + " DIFF", new T.Vector3(D.x, D.y + 0.34, D.z));
   }
 
   // ---------------------------------------------------------------- wheels
@@ -698,7 +816,7 @@ window.SYS_DIAGRAM = (function () {
   const VIEWS = {
     all:   { target: [0.05, 0.35, -0.1],    pos: [-4.3, 3.7, 2.7] },
     tcase: { target: [0.1, 0.56, -0.5],     pos: [-1.55, 0.78, -0.05] },
-    front: { target: [FD.x, AY, FZ],        pos: [-0.75, 0.74, 0.62] },
+    front: { target: [FD.x, AY, FZ],        pos: [1.1, 0.74, 0.62] },   // from the right: the front ring gear is on the left
     rear:  { target: [RD.x, AY, RZ],        pos: [-0.9, 0.74, -0.62] }
   };
   const cam = { target: new T.Vector3(), sph: new T.Spherical(), goal: null, from: null, t: 1 };
@@ -718,8 +836,8 @@ window.SYS_DIAGRAM = (function () {
   }
 
   function fadeChassis() {
-    const o = cam.sph.radius < 2.6 ? 0.14 : 1;
-    chassisMats.forEach((m) => { m.opacity = o; m.depthWrite = o === 1; });
+    const near = cam.sph.radius < 2.6;
+    chassisMats.forEach((m) => { m.opacity = near ? 0.08 : m === steel ? 0.35 : 0.85; m.depthWrite = false; });
   }
 
   function stepCamera(dt) {
@@ -796,7 +914,7 @@ window.SYS_DIAGRAM = (function () {
   function targetSpeeds() {
     const low = result.low, ratio = result.state.lowRatio;
     const v = result.status === "move" ? (low ? 1.5 / ratio : 1.5) : 0;
-    const spinV = low ? 8 / Math.sqrt(ratio) : 8;
+    const spinV = low ? 6 / Math.sqrt(ratio) : 6;
     const out = { v: v, wheel: {} };
     C.WHEELS.forEach((w) => {
       const st = wheelState(w);
@@ -807,120 +925,173 @@ window.SYS_DIAGRAM = (function () {
       else s = 0;
       out.wheel[w] = s / R;
     });
+    // a locked axle turns both its wheels together
+    [["front", "fl", "fr"], ["rear", "rl", "rr"]].forEach(([a, l, r]) => {
+      if (result.splits[a] === "locked" && !(a === "front" && result.splits.centre === "rear")) {
+        out.wheel[l] = out.wheel[r] = Math.max(out.wheel[l], out.wheel[r]);
+      }
+    });
     raw = Object.assign({}, out.wheel); // before reduced motion stops them: the colours use these
     if (reduceMotion) out.v = 0;
     return out;
   }
 
   let raw = { fl: 0, fr: 0, rl: 0, rr: 0 }; // the model's wheel speeds
-  const capAngular = (x) => Math.max(-28, Math.min(28, x));
 
+  // Every part's speed, worked back from the wheels through the real gear
+  // ratios, so meshing teeth move together. All about the part's own axis.
   function stepSpeeds(dt) {
     const tg = targetSpeeds();
     const k = Math.min(1, dt * 3);
     shown.v += (tg.v - shown.v) * k;
     C.WHEELS.forEach((w) => { shown.wheel[w] += ((reduceMotion ? 0 : tg.wheel[w]) - shown.wheel[w]) * k; });
-    const ww = shown.wheel;
-    const s = result.splits;
-    const front = (ww.fl + ww.fr) / 2, rear = (ww.rl + ww.rr) / 2;
-    const FINAL = 2.4; // drawn ratio between the prop shafts and the wheels
-    const frontConnected = s.centre !== "rear";
+    const ww = shown.wheel, s = result.splits, sys = result.state.system;
+    const frontDriven = s.centre !== "rear";
     const sp = {};
-    C.WHEELS.forEach((w) => { sp["wheel-" + w] = ww[w]; });
-    sp.frontProp = capAngular(front * FINAL);
-    sp.rearProp = capAngular(rear * FINAL);
-    sp.front = sp.frontProp;
-    sp.main = sp.rearProp;
-    sp.chainDrive = frontConnected ? sp.frontProp : 0;
-    const centreOut = s.centre === "rear" || s.centre === "clutch" ? sp.main : (sp.frontProp + sp.main) / 2;
-    sp.carrierZ = centreOut;
-    sp.planetSpin = capAngular((sp.frontProp - sp.main) * 1.5);
-    sp.input = capAngular(centreOut * (result.low ? result.state.lowRatio : 1));
-    sp.counter = capAngular(-sp.input * 0.65);
-    sp.frontCarrier = front; sp.rearCarrier = rear;
-    sp.frontSpiders = capAngular((ww.fr - ww.fl) * 1.2);
-    sp.rearSpiders = capAngular((ww.rr - ww.rl) * 1.2);
+    C.WHEELS.forEach((w) => { sp["wheel-" + w] = ww[w]; sp["side-" + w] = ww[w]; });
+    // 2H: free-wheeling hubs let the front wheels roll while the front driveline stands still
+    if (!frontDriven) { sp["side-fl"] = 0; sp["side-fr"] = 0; }
+    const cF = (sp["side-fl"] + sp["side-fr"]) / 2, cR = (sp["side-rl"] + sp["side-rr"]) / 2;
+    sp.frontCarrier = cF; sp.rearCarrier = cR;
+    sp.frontSpiders = (sp["side-fl"] - sp["side-fr"]) / 2;
+    sp.rearSpiders = (sp["side-rl"] - sp["side-rr"]) / 2;
+    // props about +z: the pinions are a quarter the ring gear's size (76/14-degree cones)
+    let pF = -4 * cF, pR = -4 * cR;
+    if (s.centre === "locked") { const m = (pF + pR) / 2; pF = pR = m; }
+    sp.front = pF; sp.main = pR;
+    sp.frontPinion = -pF; // the front pinion faces backwards
+    sp.rearPinion = pR;
+    // the centre unit's input
+    let cin;
+    if (sys === "torsen") cin = (PL.sun * pF + PL.ring * pR) / (PL.sun + PL.ring);
+    else if (sys === "ss2") cin = (pF + pR) / 2;
+    else cin = pR;
+    if (s.centre === "rear") cin = pR;
+    sp.centreIn = cin;
+    sp.planetRel = -(pF - cin) * (PL.sun / PL.planet);
+    sp.cdSpiders = (pR - pF) / 2;
+    // range set: direct in high; in low the input turns 1 / LOW_DRAWN faster
+    const input = result.low ? cin / LOW_DRAWN : cin;
+    sp.input = input;
+    sp.lowGear = input * LOW_DRAWN;
+    sp.counter = -input * (0.085 / 0.13);
+    // keep the fastest part slow enough to see, scaling everything together
+    let max = 0;
+    Object.keys(sp).forEach((n) => { max = Math.max(max, Math.abs(sp[n])); });
+    const scale = max > 26 ? 26 / max : 1;
+    Object.keys(sp).forEach((n) => { if (!/^wheel-/.test(n)) sp[n] *= scale; });
     return sp;
   }
 
   function applyRotation(sp, dt) {
+    const add = (n, w) => { angle[n] = (angle[n] || 0) + (w || 0) * dt; return angle[n]; };
     Object.keys(spin).forEach((name) => {
-      const w = sp[name];
-      if (w === undefined) return;
-      angle[name] = (angle[name] || 0) + w * dt;
+      const a = add(name, sp[name]);
       spin[name].forEach((s) => {
-        if (s.wheel) s.obj.rotation.x = angle[name]; // rolling forward (+z) turns about +x
-        else if (s.axisZ) s.obj.rotation.z = angle[name] * s.factor;
-        else s.obj.rotation.y = angle[name] * s.factor;
+        if (s.wheel) s.obj.rotation.x = a; // rolling forward (+z) turns about +x
+        else s.obj.rotation.y = a * s.factor;
       });
     });
-    ["front", "rear"].forEach((a) => {
-      angle[a + "C"] = (angle[a + "C"] || 0) + sp[a + "Carrier"] * dt;
-      angle[a + "S"] = (angle[a + "S"] || 0) + sp[a + "Spiders"] * dt;
-      axleBits[a].carrier.rotation.x = angle[a + "C"];
-      axleBits[a].spiders.forEach((g) => { g.rotation.y = angle[a + "S"]; });
+    // axle diffs: carrier with the ring, side gears with the half shafts, spiders between
+    ["front", "rear"].forEach((ax) => {
+      const b = axleBits[ax], d = b.d;
+      d.carrier.rotation.y = add(ax + "C", sp[ax + "Carrier"]);
+      const sp1 = add(ax + "S", sp[ax + "Spiders"]);
+      d.spiders.forEach((g) => { g.rotation.y = sp1; });
+      const l = ax === "front" ? "fl" : "rl", r = ax === "front" ? "fr" : "rr";
+      d.plus.rotation.y = angle["side-" + r] || 0;       // right side gear faces +x
+      d.minus.rotation.y = -(angle["side-" + l] || 0);   // left one faces -x
+      b.pin.rotation.y = add(ax + "Pin", sp[ax + "Pinion"]);
     });
-    if (chain) { angle.chain = (angle.chain || 0) + sp.chainDrive * 0.108 * dt; chain.move(angle.chain); }
+    // centre units
+    const pl = tcGroups.pl;
+    pl.sun.rotation.y = angle.front || 0;
+    pl.ring.rotation.y = angle.main || 0;
+    pl.carrier.rotation.y = angle.centreIn || 0;
+    const pr = add("planetRel", sp.planetRel);
+    pl.planets.forEach((p) => { p.rotation.y = pr; });
+    pl.cdl.rotation.y = angle.front || 0;
+    const cd = tcGroups.cd;
+    cd.carrier.rotation.y = angle.centreIn || 0;
+    const cs = add("cdS", sp.cdSpiders);
+    cd.spiders.forEach((g) => { g.rotation.y = cs; });
+    cd.plus.rotation.y = angle.front || 0;
+    cd.minus.rotation.y = -(angle.main || 0);
+    tcGroups.bevelCollar.rotation.y = angle.main || 0;
+    // the chain runs with the sprockets (a sprocket turning +z moves its top link towards -x)
+    if (chain) chain.move(-(angle.front || 0) * chain.radius);
   }
 
   // Ease a collar (or anything) towards a position along one axis.
   function slide(obj, axis, goal, dt) {
-    obj.position[axis] += (goal - obj.position[axis]) * Math.min(1, dt * 8);
+    obj.position[axis] += (goal - obj.position[axis]) * Math.min(1, dt * 8 || 1);
   }
 
   const T01 = (f) => Math.min(1, f / 0.4);
 
   function paintAll(dt) {
-    const r = result, s = r.splits, m = r.mode;
+    const r = result, s = r.splits;
     const sys = r.state.system;
-    const moving = r.status === "move";
     const total = r.frontForce + r.rearForce;
     const frontOn = s.centre !== "rear" && r.frontForce > 1e-6;
     const turning = (x) => Math.abs(x) > 0.05;
+    const rearTurning = turning(raw.rl + raw.rr), frontTurning = s.centre !== "rear" && turning(raw.fl + raw.fr);
+    const flow = (force, turningNow) => (force > 1e-6 ? "active" : turningNow ? "passive" : "idle");
+    const driving = flow(total, rearTurning || frontTurning || r.status !== "bog");
 
-    paint("engine", total > 1e-6 ? "active" : "passive", T01(total));
-    paint("input", total > 1e-6 ? "active" : "passive", T01(total));
-    paint("main", r.rearForce > 1e-6 ? "active" : (turning(raw.rl + raw.rr) ? "passive" : "idle"), T01(r.rearForce));
-    // range set: the high gear drives in H; in L the drive goes through the countershaft
-    const driving = total > 1e-6 ? "active" : "passive";
+    paint("engine", driving, T01(total));
+    paint("input", driving, T01(total));
+    paint("centreIn", driving, T01(total));
+    // range set: high drives straight through; low goes through the countershaft
     paint("rangeHi", r.low ? "passive" : driving, T01(total));
     paint("counter", r.low ? driving : "passive", T01(total));
     paint("rangeLo", r.low ? driving : "passive", T01(total));
     paint("rangeCollar", "lock");
-    slide(tcGroups.rangeCollar, "z", r.low ? -0.395 : -0.305, dt);
+    slide(tcGroups.rangeCollar, "z", r.low ? -0.39 : -0.31, dt);
 
-    // the centre
     tcGroups.chain.visible = sys === "part";
     tcGroups.planetary.visible = sys === "torsen";
     tcGroups.bevel.visible = sys === "ss2";
     tcGroups.clutch.visible = sys === "tod";
     const locked = s.centre === "locked";
     paint("centreLock", locked ? "lock" : "idle");
-    if (sys === "part") slide(tcGroups.centreCollar, "z", locked ? -0.595 : -0.53, dt);
-    if (sys === "torsen") slide(tcGroups.cdlCollar, "z", locked ? 0.045 : 0.085, dt);
-    if (sys === "ss2") slide(tcGroups.bevelCollar, "z", locked ? 0.075 : 0.115, dt);
-    paint("planets", s.centre === "rear" ? "idle" : locked ? "lock" : total > 1e-6 ? "active" : "passive", T01(total));
-    paint("chain", s.centre === "rear" ? "idle" : frontOn ? "active" : turning(raw.fl) ? "passive" : "idle", T01(r.frontForce));
-    paint("frontOut", s.centre === "rear" ? "idle" : frontOn ? "active" : "passive", T01(r.frontForce));
+    if (sys === "part") slide(tcGroups.centreCollar, "z", locked ? -0.565 : -0.6, dt);
+    if (sys === "torsen") slide(tcGroups.cdlCollar, "y", locked ? 0.05 : 0.085, dt);
+    if (sys === "ss2") slide(tcGroups.bevelCollar, "y", locked ? -0.105 : -0.15, dt);
+    paint("main", flow(r.rearForce, rearTurning), T01(r.rearForce));
+    paint("chain", flow(s.centre === "rear" ? 0 : r.frontForce, frontTurning), T01(r.frontForce));
+    paint("frontOut", flow(s.centre === "rear" ? 0 : r.frontForce, frontTurning), T01(r.frontForce));
+    paint("planets", s.centre === "rear" ? "idle" : locked ? "lock" : driving, T01(total));
+    paint("cdCarrier", locked ? "lock" : driving, T01(total));
+    paint("cdSpider", locked ? "lock" : Math.abs(raw.fl + raw.fr - raw.rl - raw.rr) > 0.3 ? "passive" : "idle");
+    paint("cdSidePlus", flow(r.frontForce, frontTurning), T01(r.frontForce));
+    paint("cdSideMinus", flow(r.rearForce, rearTurning), T01(r.rearForce));
     if (sys === "tod") {
       const cl = s.centre === "rear" ? "open" : s.centre === "locked" ? "lock" : r.clutch;
       const gap = cl === "open" ? 0.016 : 0.009;
-      tcGroups.plates.forEach((p, i) => slide(p, "z", (i - 3.5) * gap, dt));
-      paint("clutchInner", r.rearForce > 1e-6 ? "active" : "passive", T01(r.rearForce));
-      paint("clutchOuter", cl === "open" ? (turning(raw.fl) ? "passive" : "idle") : cl === "lock" || cl === "max" ? "lock" : "heat");
+      tcGroups.plates.forEach((p, i) => slide(p, "z", (i - 4) * gap, dt));
+      paint("clutchInner", flow(r.rearForce, rearTurning), T01(r.rearForce));
+      paint("clutchOuter", cl === "open" ? (frontTurning ? "passive" : "idle") : cl === "lock" || cl === "max" ? "lock" : "heat");
     }
 
     // props and axles
-    paint("frontProp", frontOn ? "active" : turning(raw.fl + raw.fr) ? "passive" : "idle", T01(r.frontForce));
-    paint("rearProp", r.rearForce > 1e-6 ? "active" : turning(raw.rl + raw.rr) ? "passive" : "idle", T01(r.rearForce));
-    paint("frontRing", frontOn ? "active" : turning(raw.fl + raw.fr) ? "passive" : "idle", T01(r.frontForce));
-    paint("rearRing", r.rearForce > 1e-6 ? "active" : turning(raw.rl + raw.rr) ? "passive" : "idle", T01(r.rearForce));
+    paint("frontProp", flow(s.centre === "rear" ? 0 : r.frontForce, frontTurning), T01(r.frontForce));
+    paint("rearProp", flow(r.rearForce, rearTurning), T01(r.rearForce));
     ["front", "rear"].forEach((a) => {
+      const off = a === "front" && s.centre === "rear";
+      const force = a === "front" ? r.frontForce : r.rearForce;
+      const turn = a === "front" ? frontTurning : rearTurning;
       const type = s[a];
-      const lockedAxle = type === "locked" && !(a === "front" && s.centre === "rear");
-      paint(a + "Spider", lockedAxle ? "lock" : Math.abs(raw[a === "front" ? "fl" : "rl"] - raw[a === "front" ? "fr" : "rr"]) > 0.3 ? "passive" : "idle");
+      const lockedAxle = type === "locked" && !off;
+      paint(a + "Ring", flow(off ? 0 : force, turn), T01(force));
+      paint(a + "Carrier", flow(off ? 0 : force, turn), T01(force));
+      const l = a === "front" ? "fl" : "rl", rr = a === "front" ? "fr" : "rr";
+      paint(a + "Spider", lockedAxle ? "lock" : !off && Math.abs(raw[l] - raw[rr]) > 0.3 ? "passive" : "idle");
+      paint(a + "SidePlus", wheelFlow(rr, off), T01(r.wheels[rr].force * 2));
+      paint(a + "SideMinus", wheelFlow(l, off), T01(r.wheels[l].force * 2));
       paint(a + "Lock", type === "locked" ? "lock" : "idle");
-      slide(axleBits[a].collar, "x", type === "locked" ? -0.1 : -0.16, dt);
+      const b = axleBits[a];
+      slide(b.collar, "x", b.collarSide * (type === "locked" ? 0.105 : 0.17), dt);
     });
     paint("rearLsd", s.rear === "lsd" ? "lsd" : "idle");
     axleBits.rear.lsd.visible = !!r.state.rearLsd || s.rear === "lsd";
@@ -928,18 +1099,26 @@ window.SYS_DIAGRAM = (function () {
     // half shafts and wheels
     C.WHEELS.forEach((w) => {
       const st = wheelState(w);
-      const f = r.wheels[w].force;
-      paint("half-" + w, st === "spin" ? "slip" : st === "brake" ? "brake" : f > 1e-6 ? "active" : turning(raw[w]) ? "passive" : "idle", T01(f * 2));
+      const off = s.centre === "rear" && (w === "fl" || w === "fr");
+      paint("half-" + w, wheelFlow(w, off), T01(r.wheels[w].force * 2));
       const ringState = { grip: "grip", spin: "slip", brake: "brake", idle: "idle", air: "idle" }[st];
       paintMat(wheelBits[w].ringMat, ringState);
       paintMat(wheelBits[w].calMat, st === "brake" ? "brake" : "idle");
     });
 
-    // tiles
     C.WHEELS.forEach((w) => {
       setTile(w, r.state.surfaces[w]);
       tiles[w].edge.material.opacity = hover === w ? 0.9 : 0;
     });
+  }
+
+  // A half shaft or side gear: red when its wheel spins, amber when braked.
+  function wheelFlow(w, off) {
+    if (off) return "idle";
+    const st = wheelState(w);
+    if (st === "spin") return "slip";
+    if (st === "brake") return "brake";
+    return result.wheels[w].force > 1e-6 ? "active" : Math.abs(raw[w]) > 0.05 ? "passive" : "idle";
   }
 
   function paintMat(m, state) {
@@ -965,6 +1144,7 @@ window.SYS_DIAGRAM = (function () {
     sub.textContent = centreWords[s.centre];
     tcLabel.el.append(head, sub);
     tcLabel.el.classList.toggle("is-lock", s.centre === "locked");
+    tcGroups.cuLabel.el.textContent = { part: "2-4 COLLAR", torsen: "PLANETARY CENTRE DIFF + CDL", ss2: "BEVEL CENTRE DIFF + LOCK", tod: "WET CLUTCH PACK" }[r.state.system];
     ["front", "rear"].forEach((a) => {
       const off = a === "front" && s.centre === "rear";
       axleBits[a].label.el.textContent = a.toUpperCase() + " DIFF · " + (off ? "NOT DRIVEN" : DIFF_NAMES[s[a]]);
@@ -1109,5 +1289,8 @@ window.SYS_DIAGRAM = (function () {
     if (!running) { frame(0.05); kick(); }
   }
 
-  return { init: init, show: show, focus: focus };
+  // step(): draw one frame dt seconds on (for tests and screenshots).
+  function step(dt) { if (cam.goal) { cam.t = 1; stepCamera(0); } frame(dt); }
+
+  return { init: init, show: show, focus: focus, step: step };
 })();
