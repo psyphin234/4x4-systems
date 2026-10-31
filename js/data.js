@@ -46,6 +46,15 @@ window.SYS_DATA = {
   // differ widely.
   lsd: { bias: 2.5, preload: 0.10 },
 
+  // Traction control (owner, 2026-10-31: show the wheel spinning, then being
+  // stopped, as in real life, and that this makes it less effective than a
+  // locker). It only brakes a wheel once it has started to spin, and lets go
+  // again, so on average it passes across only `share` of the extra drive a
+  // locker would (0 = an open diff, 1 = a locker). The brake holds the
+  // spinning side's torque, so the engine has to pull that too: the brakes
+  // use up engine pull a locker doesn't. Illustrative.
+  trc: { share: 0.7 },
+
   // The diff demo under "How each one works" (owner, 2026-10-30): one axle on
   // its own. load = the share of the weight on each of its wheels; need = the
   // push the axle has to give to keep going (illustrative: chosen so an open
@@ -143,7 +152,7 @@ window.SYS_DATA = {
     "Grip and resistance figures are illustrative round numbers, not measurements. Real grip changes with tyres, pressures, load, wet and how the surface breaks up.",
     "The load is shared evenly by the wheels on the ground. On a real slope weight moves to the downhill axle, and suspension travel changes what each wheel carries.",
     "The centre diffs split 50:50 here, and the Torsen's bias ratio and the wet clutch's limit are round numbers. Real systems differ by make and model, and some split unevenly on purpose.",
-    "Traction control is shown as able to hold a spinning wheel completely. Real systems differ in how hard and how long they can brake, and some switch off when a locker goes on.",
+    "Traction control is shown passing on 70% of the extra drive a locker would, with its brakes taking engine pull equal to what they hold back. Real systems differ in how fast, how hard and how long they brake, and some switch off when a locker goes on.",
     "Throttle control, momentum and tyre pressures aren't modelled, and they often matter as much as the drivetrain.",
     "The 3D drawing shows how each kind of part works, not any maker's actual design. Which positions and switches your vehicle has, and when its electronics allow them (some lockers only engage in 4L, or below a speed), depends on the make and model: check your handbook."
   ]

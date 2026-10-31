@@ -102,6 +102,23 @@
     C.distribute(t, 0.2, out, false);
     eq(out.rl.braked, true, "lifted wheel braked");
     near(out.rr.force, 0.2, 1e-9, "drive goes across");
+    near(out._brake, 0.2, 1e-9, "the brake holds the lifted side's torque, and the engine pulls it");
+  });
+
+  test("traction control gets less across than a locker, and its brakes use up pull", () => {
+    const tc = { type: "tc", a: leaf("rl", 0), b: leaf("rr", 0.3) };
+    const lk = { type: "locked", a: leaf("rl", 0), b: leaf("rr", 0.3) };
+    near(C.capacity(tc), D.trc.share * 0.3, 1e-9, "TRC: its share of what a locker gives");
+    near(C.capacity(lk), 0.3, 1e-9, "locker: all of it");
+    // a rear wheel in the air, 2H: the locker drives, TRC can't quite
+    eq(status("lift", { trc: true }), "spin", "2H + TRC");
+    eq(status("lift", { rearLock: true }), "move", "2H + rear locker");
+    // cross-axle in high range: TRC has the grip, but the brakes eat the pull
+    const r = C.solve(st("cross", { system: "torsen", mode: "4H", trc: true }));
+    eq(r.status, "bog", "TRC in high range");
+    near(r.brake, r.need, 1e-9, "brakes take as much as the climb");
+    eq(status("cross", { system: "torsen", mode: "4L", trc: true }), "move", "TRC in low range");
+    eq(status("cross", { mode: "4H", frontLock: true, rearLock: true }), "move", "both lockers in high range");
   });
 
   test("load is shared by the wheels on the ground", () => {
@@ -135,7 +152,7 @@
     eq(status("cross", { mode: "4H", rearLock: true }), "move", "4H + rear locker");
     eq(status("cross", { system: "torsen", mode: "4H", cdl: true }), "spin", "CDL only");
     eq(status("cross", { system: "torsen", mode: "4H", cdl: true, rearLock: true }), "move", "CDL + rear locker");
-    eq(status("cross", { system: "torsen", mode: "4H", trc: true }), "move", "traction control");
+    eq(status("cross", { system: "torsen", mode: "4L", trc: true }), "move", "traction control (in low range: its brakes use up pull)");
   });
 
   test("steep climb: high range bogs, low range climbs", () => {

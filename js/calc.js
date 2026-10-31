@@ -12,7 +12,10 @@
      preload, so a wheel in the air still leaves the other some drive (a Torsen
      has no preload: with an end in the air it passes nothing);
    - traction control: an open diff whose spinning side is braked, so the other
-     side gets drive; at the ground that's the sum, like a locker;
+     side gets drive. It only brakes once the wheel spins, and lets go again, so
+     the other side gets only `trc.share` of the extra a locker would give it;
+     and the engine has to pull against the brake too (the brake loss, added to
+     the pull needed);
    - wet clutch (4A): the rear is driven, and the clutch passes up to its limit
      to the front once the rear needs help;
    - 2H: everything to the rear axle. */
@@ -104,6 +107,10 @@ window.SYS_CALC = (function () {
     return type === "lsd" ? Math.max(byBias, weak + D.lsd.preload) : byBias;
   }
 
+  // What traction control gets to the stronger side: what the weaker side
+  // holds (as an open diff) plus trc.share of the rest a locker would add.
+  const tcLimit = (weak, strong) => weak + D.trc.share * Math.max(0, strong - weak);
+
   // The most a node can pass to the ground before a wheel spins.
   function capacity(n) {
     if (n.type === "wheel") return n.grip;
@@ -115,11 +122,13 @@ window.SYS_CALC = (function () {
       return weak + Math.min(Math.max(ca, cb), strongLimit(n.type, weak));
     }
     if (n.type === "clutch") return cb + Math.min(ca, D.clutch.max); // a = front, b = rear (driven)
-    return ca + cb; // locked, tc
+    if (n.type === "tc") return tcLimit(Math.min(ca, cb), Math.max(ca, cb)) + Math.min(ca, cb);
+    return ca + cb; // locked
   }
 
   // Push F through node n; writes each wheel's demand, ground force, slip and
-  // brake into out, and each split's own story into out._splits.
+  // brake into out, each split's own story into out._splits, and the pull the
+  // traction control brakes take into out._brake.
   // braked: this branch is being held by traction control.
   function distribute(n, F, out, braked) {
     if (n.type === "wheel") {
@@ -160,8 +169,11 @@ window.SYS_CALC = (function () {
       const lim = strongLimit(n.type, cw);
       if (F <= capacity(n) + EPS) { fw = cw; fs = F - cw; } // the bias (or preload) carries the rest across
       else { fw = F / 2; fs = lim < cs ? lim : F - cw; }
-    } else { // tc: brake the weak side, the rest goes to the strong side
-      fw = cw; fs = F - cw; brakeWeak = true;
+    } else { // tc: brake the weak side, the rest goes to the strong side, up to what TRC manages
+      fs = Math.min(F - cw, tcLimit(cw, cs)); fw = F - fs; brakeWeak = true;
+      // the open diff gives the weak side the same torque as the strong; the
+      // ground takes what it holds and the brake the rest
+      out._brake = (out._brake || 0) + Math.max(0, fs - cw);
     }
     out._splits[n.id] = weakIsA ? { a: fw, b: fs } : { a: fs, b: fw };
     if (weakIsA) {
@@ -208,21 +220,26 @@ window.SYS_CALC = (function () {
     const cap = capacity(t);
     const need = needed(s.surfaces, s.slope);
     const pull = D.engine.pullHigh * (m.low ? s.lowRatio : 1);
+    // what traction control's brakes take while pushing what's needed
+    const trial = {};
+    distribute(t, Math.min(need, cap), trial, false);
+    const brake = trial._brake || 0;
     let status, F;
-    if (need <= cap + EPS && need <= pull + EPS) { status = "move"; F = need; }
+    if (need <= cap + EPS && need + brake <= pull + EPS) { status = "move"; F = need; }
     else if (cap < pull && cap < need) { status = "spin"; F = pull; }
     else { status = "bog"; F = pull; }
     const wheels = {};
     const ground = distribute(t, F, wheels, false);
     const centre = wheels._splits.centre;
     delete wheels._splits;
+    delete wheels._brake;
     const k = splits(s);
     WHEELS.forEach((w) => {
       Object.assign(wheels[w], grip[w]);
       wheels[w].driven = !(k.centre === "rear" && (w === "fl" || w === "fr"));
     });
     return {
-      state: s, mode: m, low: !!m.low, splits: k, status: status, need: need, grip: cap, pull: pull, ground: ground,
+      state: s, mode: m, low: !!m.low, splits: k, status: status, need: need, grip: cap, pull: pull, ground: ground, brake: brake,
       totalGrip: WHEELS.reduce((t2, w) => t2 + grip[w].grip, 0),
       wheels: wheels,
       frontForce: wheels.fl.force + wheels.fr.force,

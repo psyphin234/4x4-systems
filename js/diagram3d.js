@@ -1093,17 +1093,41 @@ window.SYS_DIAGRAM = (function () {
     return "grip";
   }
 
+  // Traction control on a wheel (owner, 2026-10-31: as in real life): it only
+  // brakes once the wheel spins, so the wheel spins up, the brake bites and
+  // stops it, lets go, and it spins up again. Each braked wheel has its own
+  // cycle. up = how far it has spun up (0 to 1); brake = the brake is on.
+  const TRC_PERIOD = 1.4;
+  const TRC_OFFSET = { fl: 0, fr: 0.5, rl: 0.25, rr: 0.75 };
+  function trcCycle(w) {
+    if (reduceMotion) return { up: 0, brake: true };
+    const ph = (time / TRC_PERIOD + TRC_OFFSET[w]) % 1;
+    if (ph < 0.45) { const x = ph / 0.45; return { up: x * x * (3 - 2 * x), brake: false }; }
+    if (ph < 0.6) return { up: 1 - (ph - 0.45) / 0.15, brake: true };
+    return { up: 0, brake: true };
+  }
+
+  // What a wheel shows now: a braked wheel shows as spinning until the brake bites.
+  function shownState(w) {
+    const st = wheelState(w);
+    return st === "brake" && !trcCycle(w).brake ? "spin" : st;
+  }
+
   function targetSpeeds() {
     const low = result.low, ratio = result.state.lowRatio;
-    const v = result.status === "move" ? (low ? 1.5 / ratio : 1.5) : 0;
+    let v = result.status === "move" ? (low ? 1.5 / ratio : 1.5) : 0;
     const spinV = low ? 6 / Math.sqrt(ratio) : 6;
+    // while a braked wheel spins, the open diff gives the others little: it surges
+    let up = 0;
+    C.WHEELS.forEach((w) => { if (wheelState(w) === "brake") up = Math.max(up, trcCycle(w).up); });
+    v *= 1 - 0.5 * up;
     const out = { v: v, wheel: {} };
     C.WHEELS.forEach((w) => {
       const st = wheelState(w);
       let s;
-      if (result.status === "move") s = st === "brake" ? v * 0.3 : v;
+      if (st === "brake") s = (result.status === "move" ? v * 0.3 : 0.3) + spinV * 0.6 * trcCycle(w).up;
+      else if (result.status === "move") s = v;
       else if (st === "spin") s = spinV;
-      else if (st === "brake") s = 0.3;
       else s = 0;
       out.wheel[w] = s / R;
     });
@@ -1119,6 +1143,7 @@ window.SYS_DIAGRAM = (function () {
   }
 
   let raw = { fl: 0, fr: 0, rl: 0, rr: 0 }; // the model's wheel speeds
+  let peakSpeed = 0;
 
   // Every part's speed, worked back from the wheels through the real gear
   // ratios, so meshing teeth move together. All about the part's own axis.
@@ -1126,7 +1151,10 @@ window.SYS_DIAGRAM = (function () {
     const tg = targetSpeeds();
     const k = Math.min(1, dt * 3);
     shown.v += (tg.v - shown.v) * k;
-    C.WHEELS.forEach((w) => { shown.wheel[w] += ((reduceMotion ? 0 : tg.wheel[w]) - shown.wheel[w]) * k; });
+    C.WHEELS.forEach((w) => {
+      const to = reduceMotion ? 0 : tg.wheel[w];
+      shown.wheel[w] = wheelState(w) === "brake" ? to : shown.wheel[w] + (to - shown.wheel[w]) * k; // the TRC cycle is its own easing
+    });
     const ww = shown.wheel, s = result.splits, sys = result.state.system;
     const frontDriven = s.centre !== "rear";
     const sp = {};
@@ -1164,9 +1192,12 @@ window.SYS_DIAGRAM = (function () {
     // everything together: wheels and ground too, so nothing slides. Until
     // 2026-10-30 the cap was 26 rad/s and left out the wheels; the owner saw the
     // chain and gears seem to run backwards.
+    // (the peak is held for a few seconds, so a TRC wheel spinning up doesn't
+    // slow everything else each time)
     let max = 0;
     Object.keys(sp).forEach((n) => { max = Math.max(max, Math.abs(sp[n])); });
-    const scale = max > 9 ? 9 / max : 1;
+    peakSpeed = Math.max(max, peakSpeed * (1 - Math.min(1, dt * 0.4)));
+    const scale = peakSpeed > 9 ? 9 / peakSpeed : 1;
     Object.keys(sp).forEach((n) => { sp[n] *= scale; });
     shown.scale = scale;
     return sp;
@@ -1295,7 +1326,7 @@ window.SYS_DIAGRAM = (function () {
 
     // half shafts and wheels
     C.WHEELS.forEach((w) => {
-      const st = wheelState(w);
+      const st = shownState(w);
       const off = s.centre === "rear" && (w === "fl" || w === "fr");
       paint("half-" + w, wheelFlow(w, off), T01(r.wheels[w].force * 2));
       const ringState = { grip: "grip", spin: "slip", brake: "brake", idle: "idle", air: "idle" }[st];
@@ -1312,7 +1343,7 @@ window.SYS_DIAGRAM = (function () {
   // A half shaft or side gear: red when its wheel spins, amber when braked.
   function wheelFlow(w, off) {
     if (off) return "idle";
-    const st = wheelState(w);
+    const st = shownState(w);
     if (st === "spin") return "slip";
     if (st === "brake") return "brake";
     return result.wheels[w].force > 1e-6 ? "active" : Math.abs(raw[w]) > 0.05 ? "passive" : "idle";
@@ -1325,7 +1356,7 @@ window.SYS_DIAGRAM = (function () {
   }
 
   const DIFF_NAMES = { open: "OPEN", locked: "LOCKED", lsd: "LSD", tc: "OPEN + TRC" };
-  const STATE_WORDS = { grip: "PUSHING", spin: "SPINNING", brake: "BRAKED BY TRC", idle: "NOT PUSHING", air: "IN THE AIR" };
+  const STATE_WORDS = { grip: "PUSHING", spin: "SPINNING", brake: "SPINS, TRC BRAKES IT", idle: "NOT PUSHING", air: "IN THE AIR" };
 
   function updateLabels() {
     const r = result, s = r.splits;
@@ -1384,7 +1415,7 @@ window.SYS_DIAGRAM = (function () {
     paintAll(dt);
     groundOffset -= (shown.v * shown.scale * dt) / 3.0; // the ground runs back as the vehicle drives forward (+z)
     C.WHEELS.forEach((w) => { if (tiles[w].mat.map) tiles[w].mat.map.offset.y = groundOffset; });
-    if (!reduceMotion) C.WHEELS.forEach((w) => { if (wheelState(w) === "spin" && shown.wheel[w] > 6) emit(w, dt); });
+    if (!reduceMotion) C.WHEELS.forEach((w) => { if (shownState(w) === "spin" && shown.wheel[w] > 6) emit(w, dt); });
     stepParticles(dt);
     suspension(dt);
     stepRocks();

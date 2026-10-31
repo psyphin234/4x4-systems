@@ -195,6 +195,12 @@
     [["front", "fl", "fr"], ["rear", "rl", "rr"]].forEach(([axle, a, b]) => {
       if (axle === "front" && k.centre === "rear") return;
       const type = k[axle];
+      if (type === "tc") {
+        const caught = wh[a].braked && wh[a].slip ? a : wh[b].braked && wh[b].slip ? b : null;
+        if (caught) out.push("Traction control keeps braking the spinning " + WHEEL_NAMES[caught] + " wheel, but only once it has spun, so the " +
+          WHEEL_NAMES[caught === a ? b : a] + " wheel gets about " + pct(D.trc.share) + " of the extra drive a " + axle + " locker would give it.");
+        return;
+      }
       if (type !== "open" && type !== "lsd") return;
       const sa = wh[a].slip, sb = wh[b].slip;
       if (sa !== sb) {
@@ -224,12 +230,18 @@
     const icon = { move: "&#10003;", spin: "!", bog: "!" }[r.status];
     const head = { move: "Driving on", spin: "Stuck: wheels spinning", bog: "Stuck: not enough pull" }[r.status];
     let sub;
+    const trcBrakes = r.brake > 0.005;
     if (r.status === "move") {
       sub = r.low
         ? "In low range: slow, with the engine's pull multiplied ×" + r.state.lowRatio.toFixed(1) + "."
         : "The drivetrain can put " + pct(r.grip) + " of the weight to the ground and it needs " + pct(r.need) + ".";
+      if (trcBrakes) sub += " Traction control is working: a wheel spins, the brake stops it, it spins again, so it surges along, and the brakes use up " +
+        pct(r.brake / r.pull) + " of the engine's pull.";
     } else if (r.status === "spin") {
       sub = reasons(r).join(" ");
+    } else if (trcBrakes) {
+      sub = "The tyres have the grip for the " + pct(r.need) + " of the weight the climb needs, but traction control's brakes take another " + pct(r.brake) +
+        ", and the engine only pulls " + pct(r.pull) + (r.low ? " even in low range." : " in high range.") + " Lockers don't waste pull like that.";
     } else {
       sub = "The tyres could take " + pct(r.grip) + " of the weight, but the engine only pulls " + pct(r.pull) +
         (r.low ? " even in low range" : " in high range") + ", and the climb needs " + pct(r.need) + ".";
