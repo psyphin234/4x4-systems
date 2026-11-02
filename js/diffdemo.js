@@ -29,6 +29,9 @@ window.SYS_DIFFDEMO = (function () {
   const parts = {};   // name -> materials painted together
   const spin = [];    // { obj, key, factor }: turned about local Y by angle[key]
   const angle = {}, speed = { l: 0, r: 0 };
+  const STRAIN = { size: 0.35, period: 0.9, rise: 0.6 }; // radians at full effort, seconds a round, share of it winding up
+  const MIN_EFFORT = 0.01;
+  const strain = { size: { l: 0, r: 0 }, at: { l: 0, r: 0 } };
   const labels = [];
   const bits = {};
 
@@ -396,8 +399,9 @@ window.SYS_DIFFDEMO = (function () {
       sp.textContent = "SPEED " + Math.round(r.speedShare[w] * 100) + "%";
       const st = document.createElement("span");
       const air = r.surfaces[w] === "air";
-      st.className = "tag3d-state tag3d-state--" + (r.slip[w] ? "spin" : r.moves && !air ? "grip" : "idle");
-      st.textContent = r.slip[w] ? "SPINNING" : air ? (r.moves ? "IN THE AIR, TURNING" : "IN THE AIR") : r.moves ? "PUSHING" : "STILL";
+      const trying = r.effort[w] > MIN_EFFORT;
+      st.className = "tag3d-state tag3d-state--" + (r.slip[w] ? "spin" : (r.moves && !air) || trying ? "grip" : "idle");
+      st.textContent = r.slip[w] ? "SPINNING" : air ? (r.moves ? "IN THE AIR, TURNING" : "IN THE AIR") : r.moves ? "PUSHING" : trying ? "TRYING TO TURN" : "STILL";
       el.append(head, tq, sp, st);
     });
     bits.labelDiff.el.textContent = { open: "OPEN DIFF", lsd: "LIMITED-SLIP DIFF", locked: "LOCKED DIFF" }[r.type];
@@ -416,6 +420,17 @@ window.SYS_DIFFDEMO = (function () {
   }
 
   // ---------------------------------------------------------------- per frame
+  // Stuck, with torque on a wheel that grips: it winds up against the ground,
+  // then the clutches let go and it falls back (owner, 2026-11-02: it looked
+  // the same as an open diff). 0 to 1 over a round; the size is the wheel's
+  // effort. The other wheel takes the opposite, so the carrier and prop run
+  // steady and every tooth stays in mesh.
+  function surge(t) {
+    const p = (t / STRAIN.period) % 1;
+    const ease = (x) => x * x * (3 - 2 * x);
+    return p < STRAIN.rise ? ease(p / STRAIN.rise) : 1 - ease((p - STRAIN.rise) / (1 - STRAIN.rise));
+  }
+
   function paintAll() {
     const r = result;
     ["l", "r"].forEach((w) => {
@@ -424,7 +439,7 @@ window.SYS_DIFFDEMO = (function () {
       const t = r.torque[w] / r.need;
       paint("half" + W, st, t);
       paint("side" + W, st, t);
-      paint("ring" + w, r.slip[w] ? "slip" : r.moves && r.surfaces[w] !== "air" ? "grip" : "idle");
+      paint("ring" + w, r.slip[w] ? "slip" : (r.moves && r.surfaces[w] !== "air") || r.effort[w] > MIN_EFFORT ? "grip" : "idle");
     });
     const carry = r.ground > 1e-6 ? "active" : "passive";
     const tc = r.ground / r.need;
@@ -458,6 +473,19 @@ window.SYS_DIFFDEMO = (function () {
     const c = (speed.l + speed.r) / 2;
     add("c", c);
     add("sp", (speed.r - speed.l) / 2); // the spiders: half the difference
+    // the straining wheel's wind-up, on top of those speeds
+    const moved = { l: 0, r: 0 };
+    ["l", "r"].forEach((w) => {
+      const size = reduceMotion ? 0 : STRAIN.size * r.effort[w];
+      strain.size[w] += (size - strain.size[w]) * k;
+      const at = strain.size[w] * surge(time);
+      moved[w] = at - strain.at[w];
+      strain.at[w] = at;
+    });
+    const wind = moved.l - moved.r; // how far the left wheel gains on the right
+    angle.l += wind;
+    angle.r -= wind;
+    angle.sp -= wind;
     add("p", -BEVEL.ratio * c);          // the pinion: 41:10 teeth, 4.1 turns per turn of the ring
     bits.wheell.spinner.rotation.x = angle.l;
     bits.wheelr.spinner.rotation.x = angle.r;

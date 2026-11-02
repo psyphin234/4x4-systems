@@ -201,11 +201,15 @@ window.SYS_CALC = (function () {
     if (moves || type === "locked" || (slip.l && slip.r)) speed = { l: 1, r: 1 };
     else speed = { l: slip.l ? 2 : 0, r: slip.r ? 2 : 0 };
     const share = (a, b) => (a + b > EPS ? a / (a + b) : 0.5);
+    // Stuck, but a wheel with grip still gets some torque: it strains against
+    // the ground. How hard, as a fraction of the push needed (0 = no torque at all).
+    const straining = (force, s, sf) => (!moves && !s && sf !== "air" ? force / dd.need : 0);
     return {
       type: type, left: left, right: right, need: dd.need, capacity: cap, ground: ground, moves: moves,
       torque: { l: tl, r: tr }, torqueShare: { l: share(tl, tr), r: share(tr, tl) },
       speed: speed, speedShare: { l: share(speed.l, speed.r), r: share(speed.r, speed.l) },
-      slip: slip, surfaces: { l: left, r: right }
+      slip: slip, surfaces: { l: left, r: right },
+      effort: { l: straining(tl, slip.l, left), r: straining(tr, slip.r, right) }
     };
   }
 

@@ -407,11 +407,13 @@
     if (r.type === "open") {
       return [head, "An open diff always gives both wheels the same torque, so the " + DD_SIDE[other] + " wheel only gets what the spinning one can hold" +
         (air ? ": nothing, it's in the air." : ", which is very little on ice.") +
-        " What goes to the wheel with the least resistance is the turning, not the torque: it spins at twice the speed while the other stands still."];
+        " What goes to the wheel with the least resistance is the turning, not the torque: it spins at twice the speed while the other " +
+        (air ? "stands still." : "strains but can't turn.")];
     }
-    return [head, "The LSD's clutch packs send the " + DD_SIDE[other] + " wheel " + pct(r.torqueShare[other]) +
-      " of the torque, more than an open diff could" + (air ? " with a wheel in the air" : "") + ", but only " + pct(r.ground / r.need) +
-      " of the push needed. A locker would send it all."];
+    return [head, "The LSD's clutch packs get " + pct(r.ground / r.need) + " of the push needed to the " + DD_SIDE[other] +
+      " wheel, so it strains against the ground but can't quite turn. " +
+      (air ? "An open diff would put no push on the ground here: a wheel in the air gives the clutches nothing more to work with, so only their preload gets through."
+        : "That's more than an open diff could.") + " A locker would drive."];
   }
 
   function ddStatus(r) {

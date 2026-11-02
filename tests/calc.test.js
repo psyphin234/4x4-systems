@@ -217,6 +217,11 @@
     eq(li.torqueShare.l > 0.7, true, "LSD: most of the torque to the wheel with grip");
     eq(dd("lsd", "tar", "air").moves, false, "LSD, right in the air: stuck");
     near(dd("lsd", "tar", "air").torqueShare.l, 1, 1e-9, "LSD, right in the air: what torque there is goes left");
+    near(dd("lsd", "tar", "air").effort.l, 0.10 / 0.12, 1e-9, "LSD, right in the air: the left wheel strains with the preload");
+    eq(dd("lsd", "tar", "air").effort.r, 0, "the wheel in the air doesn't strain");
+    eq(dd("open", "tar", "air").effort.l, 0, "open, right in the air: no torque, nothing to strain with");
+    eq(oi.effort.l > 0 && oi.effort.l < dd("lsd", "tar", "air").effort.l, true, "open on ice strains a little, less than the LSD");
+    eq(li.effort.l, 0, "driving on: nothing to strain against");
     const la = dd("locked", "tar", "air");
     eq(la.moves, true, "locked, right in the air: drives");
     near(la.speedShare.l, 0.5, 1e-9, "locked: both turn together");
