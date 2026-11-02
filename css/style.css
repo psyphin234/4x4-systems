@@ -3333,7 +3333,6 @@ select:focus {
 .tag3d.is-lock .tag3d-sub { color: var(--warn); }
 
 /* ------------------------------------------------------------ under each wheel: three buttons per wheel, laid out like the wheels */
-.wheel-hint { margin: -4px 0 10px; }
 .wheel-grid { grid-template-columns: 1fr 1fr; gap: 10px 8px; }
 .wheel-pick { display: grid; gap: 4px; align-content: start; }
 .wheel-pick-name { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
@@ -3370,6 +3369,26 @@ select:focus {
 .ground--mud .ground-swatch { background: radial-gradient(circle at 30% 35%, #a08a70 0 2px, transparent 3px), radial-gradient(circle at 70% 65%, #8a7660 0 2.5px, transparent 3.5px), radial-gradient(circle at 65% 25%, #7a6550 0 1.5px, transparent 2.5px), #5a3f26; }
 .ground--air .ground-swatch { background: #03050c; border: 1px dashed rgba(76, 201, 255, 0.7); }
 .ground--ice .ground-swatch { background: linear-gradient(135deg, transparent 45%, rgba(255,255,255,0.9) 46% 52%, transparent 53%), linear-gradient(160deg, #d6ecf8, #9fc6e0); }
+
+/* main bench: each wheel is a row of four ground tiles with the choice named under it, and the left column
+   ends level with the picture (owner, 2026-11-02: the stacked buttons left a gap under the animation).
+   The diff demo keeps its own list. */
+#bench > .side--left { align-self: stretch; grid-template-rows: auto 1fr; }
+#bench > .side--left > .panel { margin-bottom: 0; }
+#bench > .centre { align-self: stretch; display: flex; flex-direction: column; }
+#bench > .centre > .status { min-height: 163px; align-items: center; } /* room for the longest status, "Gets it moving" included */
+#bench > .centre > .legend { flex: 1 0 auto; align-content: center; }
+
+.panel--wheels { display: flex; flex-direction: column; }
+.panel--wheels > .panel-title { margin: 0 0 8px; }
+.panel--wheels .wheel-grid { flex: 1; grid-auto-rows: 1fr; }
+
+#wheel-grid .wheel-pick { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: auto minmax(28px, 1fr) auto; gap: 3px; }
+#wheel-grid .wheel-pick-name, #wheel-grid .wheel-pick-now { grid-column: 1 / -1; }
+#wheel-grid .wheel-pick-now { font-size: 0.72rem; line-height: 1.3; color: var(--text); }
+#wheel-grid .wheel-pick-name { line-height: 1.3; }
+#wheel-grid .ground { align-items: stretch; min-width: 0; min-height: 0; padding: 2px; }
+#wheel-grid .ground-swatch { width: 100%; height: auto; border-radius: 4px; }
 
 /* the slope: on the picture, top right, opposite the zoom buttons (owner, 2026-10-30: more visible) */
 .view-box { container-type: inline-size; }

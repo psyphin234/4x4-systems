@@ -104,7 +104,7 @@
     $("lowRatio").step = D.lowRange.step;
     $("lowRatio").addEventListener("input", (e) => set({ lowRatio: +e.target.value }));
 
-    // under each wheel: laid out like the wheels, three buttons each
+    // under each wheel: laid out like the wheels, a row of ground tiles each with the choice named below
     C.WHEELS.forEach((w) => {
       const box = document.createElement("div");
       box.className = "wheel-pick wheel-pick--" + w;
@@ -120,13 +120,16 @@
         b.className = "ground ground--" + sf.id;
         b.dataset.wheel = w;
         b.dataset.id = sf.id;
-        b.innerHTML = "<span class=\"ground-swatch\" aria-hidden=\"true\"></span><span></span>";
-        b.lastChild.textContent = sf.label;
+        b.innerHTML = "<span class=\"ground-swatch\" aria-hidden=\"true\"></span>";
         b.title = sf.name + ": " + sf.short.toLowerCase();
         b.setAttribute("aria-label", sf.name);
         b.addEventListener("click", () => setSurface(w, sf.id));
         box.appendChild(b);
       });
+      const now = document.createElement("span");
+      now.className = "wheel-pick-now";
+      now.dataset.wheel = w;
+      box.appendChild(now);
       $("wheel-grid").appendChild(box);
     });
 
@@ -313,6 +316,9 @@
     $("lowRatio").value = state.lowRatio;
     $("ratio-out").textContent = "×" + (+state.lowRatio).toFixed(1);
     document.querySelectorAll("#wheel-grid .ground").forEach((b) => radio(b, state.surfaces[b.dataset.wheel] === b.dataset.id));
+    document.querySelectorAll("#wheel-grid .wheel-pick-now").forEach((el) => {
+      el.textContent = D.surfaces.find((sf) => sf.id === state.surfaces[el.dataset.wheel]).name;
+    });
 
     const cautions = $("cautions");
     cautions.innerHTML = "";

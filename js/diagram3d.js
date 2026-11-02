@@ -1450,7 +1450,7 @@ window.SYS_DIAGRAM = (function () {
 
   function resize() {
     const wdt = box.clientWidth;
-    const hgt = Math.max(420, Math.min(wdt * 0.72, window.innerHeight * 0.66));
+    const hgt = Math.max(420, Math.min(wdt * 0.72, window.innerHeight * 0.8));
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(wdt, hgt, false);
     canvas.style.width = wdt + "px";
