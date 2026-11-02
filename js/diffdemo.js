@@ -32,6 +32,7 @@ window.SYS_DIFFDEMO = (function () {
   const STRAIN = { size: 0.35, period: 0.9, rise: 0.6 }; // radians at full effort, seconds a round, share of it winding up
   const MIN_EFFORT = 0.01;
   const strain = { size: { l: 0, r: 0 }, at: { l: 0, r: 0 } };
+  let roll = 0, travel = 0; // the ground: m/s running back, and how far it has gone
   const labels = [];
   const bits = {};
 
@@ -255,15 +256,22 @@ window.SYS_DIFFDEMO = (function () {
     if (kind === "tar") {
       g.fillStyle = "#2c313d"; g.fillRect(0, 0, 256, 256);
       for (let i = 0; i < 1400; i++) { g.fillStyle = rnd() < 0.5 ? "#3b4252" : "#22262f"; g.fillRect(rnd() * 256, rnd() * 256, 2, 2); }
+      // speckle alone doesn't show the ground moving: joints across it and dashes along each edge
+      g.fillStyle = "#181b22";
+      [40, 168].forEach((y) => g.fillRect(0, y, 256, 3));
+      g.fillStyle = "#c9c5b6";
+      for (let y = 8; y < 256; y += 64) { g.fillRect(12, y, 9, 32); g.fillRect(235, y, 9, 32); }
     } else if (kind === "ice") {
       g.fillStyle = "#b9d6ea"; g.fillRect(0, 0, 256, 256);
       g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = 1.2;
       for (let i = 0; i < 14; i++) {
-        g.beginPath();
-        let x = rnd() * 256, y = rnd() * 256;
-        g.moveTo(x, y);
-        for (let k = 0; k < 4; k++) { x += (rnd() - 0.5) * 80; y += (rnd() - 0.5) * 80; g.lineTo(x, y); }
-        g.stroke();
+        const pts = [[rnd() * 256, rnd() * 256]];
+        for (let k = 0; k < 4; k++) pts.push([pts[k][0] + (rnd() - 0.5) * 80, pts[k][1] + (rnd() - 0.5) * 80]);
+        [-256, 0, 256].forEach((dy) => { // drawn again a tile up and down, so it joins up as it scrolls
+          g.beginPath();
+          pts.forEach(([x, y], k) => (k ? g.lineTo(x, y + dy) : g.moveTo(x, y + dy)));
+          g.stroke();
+        });
       }
     } else {
       g.fillStyle = "#06122a"; g.fillRect(0, 0, 256, 256);
@@ -272,15 +280,18 @@ window.SYS_DIFFDEMO = (function () {
     }
     const t = new T.CanvasTexture(c);
     t.encoding = T.sRGBEncoding;
+    t.wrapS = t.wrapT = T.RepeatWrapping;
+    t.anisotropy = 4;
     return t;
   }
 
   const TEX = {};
+  const PAD_LONG = 2.6, GRID_CELL = 0.5;
   function buildGround() {
     ["tar", "ice", "air"].forEach((k) => { TEX[k] = texture(k); });
     [["l", 1], ["r", -1]].forEach(([w, s]) => {
       const m = new T.MeshStandardMaterial({ map: TEX.tar, roughness: 0.9 });
-      const pad = new T.Mesh(new T.PlaneGeometry(1.3, 2.6), m);
+      const pad = new T.Mesh(new T.PlaneGeometry(1.3, PAD_LONG), m);
       pad.rotation.x = -Math.PI / 2;
       pad.position.set(s * WX, 0, 0.2);
       pad.receiveShadow = true;
@@ -290,6 +301,7 @@ window.SYS_DIFFDEMO = (function () {
     const grid = new T.GridHelper(12, 24, 0x1d3b6b, 0x0f2142);
     grid.position.y = -0.62;
     scene.add(grid);
+    bits.grid = grid;
   }
 
   function setPad(w, kind) {
@@ -468,6 +480,14 @@ window.SYS_DIFFDEMO = (function () {
     const k = Math.min(1, dt * 3);
     speed.l += (goal.l - speed.l) * k;
     speed.r += (goal.r - speed.r) * k;
+    // the ground runs back under the axle at the wheels' rolling speed when it
+    // drives (owner, 2026-11-02: with it still, the wheels seemed to stand still);
+    // stuck, the vehicle isn't going anywhere, so the ground stands still however
+    // fast a wheel spins
+    roll += ((r.moves ? goal.l * R : 0) - roll) * k;
+    travel += roll * dt;
+    Object.values(TEX).forEach((t) => { t.offset.y = -travel / PAD_LONG; });
+    bits.grid.position.z = -(travel % GRID_CELL);
     const add = (key, w) => (angle[key] = (angle[key] || 0) + w * dt);
     add("l", speed.l); add("r", speed.r);
     const c = (speed.l + speed.r) / 2;
