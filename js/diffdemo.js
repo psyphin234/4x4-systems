@@ -24,7 +24,7 @@ window.SYS_DIFFDEMO = (function () {
   const S = 2.2;            // the diff is drawn this much larger than life
   const COL = { active: 0x4cc9ff, passive: 0x6b7ea8, idle: 0x323a52, lock: 0xffc857, slip: 0xff5d73, heat: 0xff8a3c, lsd: 0xb49bff, grip: 0x3ef08a };
 
-  let renderer, scene, camera, canvas, box, labelLayer;
+  let renderer, scene, camera, canvas, box, labelLayer, fx;
   let result = null, raf = 0, running = false, visible = true, last = 0, time = 0;
   const parts = {};   // name -> materials painted together
   const spin = [];    // { obj, key, factor }: turned about local Y by angle[key]
@@ -311,6 +311,7 @@ window.SYS_DIFFDEMO = (function () {
     p.mat.map = TEX[kind];
     p.mat.roughness = kind === "ice" ? 0.12 : 0.9;
     p.mat.metalness = kind === "ice" ? 0.15 : 0;
+    p.mat.envMapIntensity = kind === "ice" ? 0.15 : 0.5; // glossy ice mustn't mirror the studio lights to white
     p.mat.emissive = new T.Color(kind === "air" ? 0x0a2a55 : 0x000000);
     p.mat.emissiveIntensity = kind === "air" ? 0.4 : 0;
     p.mesh.position.y = kind === "air" ? -0.6 : 0; // in the air: the ground drops away
@@ -525,7 +526,7 @@ window.SYS_DIFFDEMO = (function () {
     });
     paintAll();
     stepCamera();
-    renderer.render(scene, camera);
+    fx.render(scene, camera);
     placeLabels();
   }
 
@@ -573,6 +574,7 @@ window.SYS_DIFFDEMO = (function () {
     const hgt = Math.max(380, Math.min(wdt * 0.62, window.innerHeight * 0.6));
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(wdt, hgt, false);
+    fx.setSize(canvas.width, canvas.height);
     canvas.style.width = wdt + "px";
     canvas.style.height = hgt + "px";
     camera.aspect = wdt / hgt;
@@ -594,7 +596,9 @@ window.SYS_DIFFDEMO = (function () {
     scene = new T.Scene();
     scene.fog = new T.Fog(0x040817, 7, 14);
     camera = new T.PerspectiveCamera(36, 1.5, 0.05, 40);
-    scene.add(new T.HemisphereLight(0xbfdcff, 0x1a1408, 0.55));
+    window.SYS_SHAPES.studio(renderer, scene);
+    fx = window.SYS_SHAPES.glow(renderer);
+    scene.add(new T.HemisphereLight(0xbfdcff, 0x1a1408, 0.5));
     const sun = new T.DirectionalLight(0xffffff, 0.9);
     sun.position.set(-2, 5, -3);
     scene.add(sun);

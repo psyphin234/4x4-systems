@@ -39,7 +39,7 @@ window.SYS_DIAGRAM = (function () {
   };
 
   // ---------------------------------------------------------------- state
-  let renderer, scene, camera, rig, box, canvas, labelLayer;
+  let renderer, scene, camera, rig, box, canvas, labelLayer, fx;
   let world; // the ground and the vehicle together, tilted to the slope (front up)
   const X_AXIS = new T.Vector3(1, 0, 0);
   let result = null, onWheelClick = null;
@@ -653,6 +653,46 @@ window.SYS_DIAGRAM = (function () {
     });
     buildAxle("front", FD, -1);
     buildAxle("rear", RD, 1);
+    pulsePath(rig, new T.Vector3(0, MY, -0.75), new T.Vector3(RD.x, AY, RZ + PIN_REACH), 0.035, 4, "rearProp");
+    pulsePath(rig, new T.Vector3(FOUT.x, FOUT.y, FOUT.z + 0.44), new T.Vector3(FD.x, AY, FZ - PIN_REACH), 0.032, 4, "frontProp");
+  }
+
+  // ---------------------------------------------------------------- drive pulses
+  // Rings of light that run down a shaft while it carries drive, from the
+  // transfer case out to the wheels: more drive, brighter. They show which
+  // way the drive goes; the shaft's colour still says how much. Not shown
+  // under reduced motion.
+  const pulses = [];
+  const pulseForce = {};   // name -> 0..1, set in paintAll()
+  function pulsePath(parent, a, b, r, n, name) {
+    if (reduceMotion) return;
+    const dir = new T.Vector3().subVectors(b, a);
+    const q = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 0, 1), dir.clone().normalize());
+    const geo = new T.TorusGeometry(r * 1.55, r * 0.17, 8, 28);
+    const rings = [];
+    for (let i = 0; i < n; i++) {
+      const m = new T.Mesh(geo, new T.MeshBasicMaterial({ color: 0x55ccff, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
+      m.quaternion.copy(q);
+      m.visible = false;
+      parent.add(m);
+      rings.push(m);
+    }
+    pulses.push({ a: a, dir: dir, len: dir.length(), rings: rings, name: name, level: 0 });
+  }
+
+  function stepPulses(dt) {
+    pulses.forEach((p) => {
+      const goal = pulseForce[p.name] || 0;
+      p.level += (goal - p.level) * Math.min(1, dt * 5 || 1);
+      const on = p.level > 0.02;
+      p.rings.forEach((m, i) => {
+        m.visible = on;
+        if (!on) return;
+        const k = (time * 0.75 / p.len + i / p.rings.length) % 1;
+        m.position.copy(p.a).addScaledVector(p.dir, k);
+        m.material.opacity = Math.sin(Math.PI * k) * (0.35 + 0.65 * p.level);
+      });
+    });
   }
 
   // An axle: banjo housing; ring and pinion; the bevel diff; the locker's dog
@@ -696,6 +736,7 @@ window.SYS_DIAGRAM = (function () {
       const sh = turns("side-" + w, shaft, -1); // along() points local Y at -X, so turn it backwards
       sh.position.x = (a + b) / 2;
       g.add(sh);
+      pulsePath(g, new T.Vector3(s * 0.1, 0, 0), new T.Vector3(b - s * 0.2, 0, 0), 0.03, 3, "half-" + w);
     });
     // locker: dog collar on the half shaft on the side away from the ring
     const cs = -ringSide;
@@ -887,6 +928,7 @@ window.SYS_DIAGRAM = (function () {
     t.mat.map.needsUpdate = true;
     t.mat.roughness = kind === "ice" ? 0.12 : kind === "mud" ? 0.55 : 0.9; // ice is glossy
     t.mat.metalness = kind === "ice" ? 0.15 : 0;
+    t.mat.envMapIntensity = kind === "ice" ? 0.15 : 0.5; // glossy ice mustn't mirror the studio lights to white
     t.mat.emissive = new T.Color(kind === "air" ? 0x0a2a55 : 0x000000);
     t.mat.emissiveIntensity = kind === "air" ? 0.4 : 0;
     // a wheel in the air: the tile drops away into a pit, so the tyre hangs free
@@ -946,7 +988,7 @@ window.SYS_DIAGRAM = (function () {
     const geo = new T.BufferGeometry();
     geo.setAttribute("position", new T.BufferAttribute(new Float32Array(N * 3), 3));
     geo.setAttribute("color", new T.BufferAttribute(new Float32Array(N * 3), 3));
-    const mat = new T.PointsMaterial({ size: 0.045, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false });
+    const mat = new T.PointsMaterial({ size: 0.085, map: window.SYS_SHAPES.dotTexture(), vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false });
     particles = new T.Points(geo, mat);
     particles.frustumCulled = false;
     world.add(particles);
@@ -1305,6 +1347,8 @@ window.SYS_DIAGRAM = (function () {
     // props and axles
     paint("frontProp", flow(s.centre === "rear" ? 0 : r.frontForce, frontTurning), T01(r.frontForce));
     paint("rearProp", flow(r.rearForce, rearTurning), T01(r.rearForce));
+    pulseForce.frontProp = s.centre === "rear" ? 0 : T01(r.frontForce);
+    pulseForce.rearProp = T01(r.rearForce);
     ["front", "rear"].forEach((a) => {
       const off = a === "front" && s.centre === "rear";
       const force = a === "front" ? r.frontForce : r.rearForce;
@@ -1329,6 +1373,7 @@ window.SYS_DIAGRAM = (function () {
       const st = shownState(w);
       const off = s.centre === "rear" && (w === "fl" || w === "fr");
       paint("half-" + w, wheelFlow(w, off), T01(r.wheels[w].force * 2));
+      pulseForce["half-" + w] = wheelFlow(w, off) === "active" ? T01(r.wheels[w].force * 2) : 0;
       const ringState = { grip: "grip", spin: "slip", brake: "brake", idle: "idle", air: "idle" }[st];
       paintMat(wheelBits[w].ringMat, ringState);
       paintMat(wheelBits[w].calMat, st === "brake" ? "brake" : "idle");
@@ -1417,6 +1462,7 @@ window.SYS_DIAGRAM = (function () {
     C.WHEELS.forEach((w) => { if (tiles[w].mat.map) tiles[w].mat.map.offset.y = groundOffset; });
     if (!reduceMotion) C.WHEELS.forEach((w) => { if (shownState(w) === "spin" && shown.wheel[w] > 6) emit(w, dt); });
     stepParticles(dt);
+    stepPulses(dt);
     suspension(dt);
     stepRocks();
     const tilt = -(result.state.slope * Math.PI) / 180; // uphill: the front (+z) rises
@@ -1424,7 +1470,7 @@ window.SYS_DIAGRAM = (function () {
     rig.position.set(0, 0, 0);
     if (result.status === "bog" && !reduceMotion) rig.position.set((Math.random() - 0.5) * 0.008, (Math.random() - 0.5) * 0.006, 0);
     stepCamera(dt);
-    renderer.render(scene, camera);
+    fx.render(scene, camera);
     placeLabels();
   }
 
@@ -1453,6 +1499,7 @@ window.SYS_DIAGRAM = (function () {
     const hgt = Math.max(420, Math.min(wdt * 0.72, window.innerHeight * 0.8));
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(wdt, hgt, false);
+    fx.setSize(canvas.width, canvas.height);
     canvas.style.width = wdt + "px";
     canvas.style.height = hgt + "px";
     camera.aspect = wdt / hgt;
@@ -1477,8 +1524,10 @@ window.SYS_DIAGRAM = (function () {
     scene = new T.Scene();
     scene.fog = new T.Fog(0x040817, 9, 18);
     camera = new T.PerspectiveCamera(38, 1.4, 0.05, 60);
+    window.SYS_SHAPES.studio(renderer, scene);
+    fx = window.SYS_SHAPES.glow(renderer);
 
-    scene.add(new T.HemisphereLight(0xbfdcff, 0x1a1408, 0.5));
+    scene.add(new T.HemisphereLight(0xbfdcff, 0x1a1408, 0.45));
     const sun = new T.DirectionalLight(0xffffff, 0.95);
     sun.position.set(3, 6, 3.5); // over the camera's shoulder (front left)
     sun.castShadow = true;

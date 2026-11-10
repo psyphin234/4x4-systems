@@ -140,5 +140,117 @@ window.SYS_SHAPES = (function () {
     pinionPhase: (2 * Math.PI * 0.25) / PINION_TEETH
   };
 
-  return { glass: glass, rod: rod, gear: gear, coneGear: coneGear, ringGear: ringGear, along: along, collarMesh: collarMesh, bevel: bevel };
+  // ---------------------------------------------------------------- the look
+  // Both views share these (2026-11-10, owner asked for a better-looking
+  // animation). Nothing here changes what a colour means.
+
+  // Studio lighting: a dark room with soft light
+  // panels for the metal to reflect (gears and rims look machined instead of
+  // flat). The room is only ever seen in reflections.
+  function studio(renderer, scene) {
+    const room = new T.Scene();
+    room.add(new T.Mesh(new T.BoxGeometry(30, 30, 30), new T.MeshBasicMaterial({ color: 0x020308, side: T.BackSide })));
+    const panel = (w, h, hex, k, pos) => {
+      const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ color: new T.Color(hex).multiplyScalar(k), side: T.DoubleSide }));
+      m.position.set(pos[0], pos[1], pos[2]);
+      m.lookAt(0, 0, 0);
+      room.add(m);
+    };
+    panel(10, 6, 0xffffff, 0.4, [0, 9, 2]);      // soft box overhead
+    panel(3, 8, 0x4cc9ff, 0.5, [-9, 3, -3]);     // cyan strip
+    panel(3, 8, 0xffc890, 0.25, [9, 3, 4]);     // warm strip opposite
+    panel(8, 2, 0x8f7bff, 0.25, [0, 2, -10]);     // violet, low behind
+    const pm = new T.PMREMGenerator(renderer);
+    scene.environment = pm.fromScene(room, 0.03).texture;
+    pm.dispose();
+  }
+
+  // A soft glow round whatever is brightly lit (the drive colours, locks,
+  // spinning wheels): the picture is drawn to a buffer, its brightest parts
+  // are blurred at a quarter of the size and added back. Returns
+  // { setSize(w, h), render(scene, camera) }; where the buffers aren't
+  // supported it draws straight to the screen, with no glow.
+  function glow(renderer, o) {
+    o = Object.assign({ threshold: 0.8, knee: 0.5, strength: 0.4 }, o);
+    const plain = { setSize: function () {}, render: function (scene, camera) { renderer.render(scene, camera); } };
+    if (!renderer.capabilities.isWebGL2 || !renderer.extensions.has("EXT_color_buffer_float")) return plain;
+    const soft = { type: T.HalfFloatType, minFilter: T.LinearFilter, magFilter: T.LinearFilter, depthBuffer: false };
+    const full = new T.WebGLRenderTarget(2, 2, { type: T.HalfFloatType, samples: 4 });
+    const half = new T.WebGLRenderTarget(2, 2, soft), qa = new T.WebGLRenderTarget(2, 2, soft), qb = new T.WebGLRenderTarget(2, 2, soft);
+    const cam = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const quad = new T.Mesh(new T.PlaneGeometry(2, 2));
+    quad.frustumCulled = false;
+    const qs = new T.Scene();
+    qs.add(quad);
+    const vs = "varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }";
+    const mat = (fs, uniforms) => new T.ShaderMaterial({ vertexShader: vs, fragmentShader: fs, uniforms: uniforms, depthTest: false, depthWrite: false, blending: T.NoBlending });
+    const bright = mat(
+      "uniform sampler2D map; uniform float threshold; uniform float knee; varying vec2 vUv;" +
+      // only strong colours glow (the drive colours), not pale lit ground such as ice
+      "void main() { vec4 c = texture2D(map, vUv); float b = max(c.r, max(c.g, c.b));" +
+      " float sat = (b - min(c.r, min(c.g, c.b))) / max(b, 0.0001);" +
+      " float w = smoothstep(threshold, threshold + knee, b) * smoothstep(0.3, 0.55, sat);" +
+      " gl_FragColor = vec4(min(c.rgb, vec3(4.0)) * w, 1.0); }",
+      { map: { value: full.texture }, threshold: { value: o.threshold }, knee: { value: o.knee } });
+    const blur = mat(
+      "uniform sampler2D map; uniform vec2 dir; varying vec2 vUv;" +
+      "void main() { vec3 s = texture2D(map, vUv).rgb * 0.227027;" +
+      " s += (texture2D(map, vUv + dir * 1.3846).rgb + texture2D(map, vUv - dir * 1.3846).rgb) * 0.316216;" +
+      " s += (texture2D(map, vUv + dir * 3.2308).rgb + texture2D(map, vUv - dir * 3.2308).rgb) * 0.070270;" +
+      " gl_FragColor = vec4(s, 1.0); }",
+      { map: { value: null }, dir: { value: new T.Vector2() } });
+    const final = mat(
+      "uniform sampler2D map; uniform sampler2D glowMap; uniform float strength; varying vec2 vUv;" +
+      "void main() { vec4 c = texture2D(map, vUv); vec3 g = texture2D(glowMap, vUv).rgb * strength;" +
+      " gl_FragColor = vec4(c.rgb + g, 1.0);\n#include <tonemapping_fragment>\n#include <encodings_fragment>\n" +
+      " gl_FragColor.a = max(c.a, clamp(max(g.r, max(g.g, g.b)), 0.0, 1.0)); }",
+      { map: { value: full.texture }, glowMap: { value: qb.texture }, strength: { value: o.strength } });
+
+    function pass(material, target) {
+      quad.material = material;
+      renderer.setRenderTarget(target);
+      renderer.render(qs, cam);
+    }
+    function blurPass(from, to, x, y) {
+      blur.uniforms.map.value = from.texture;
+      blur.uniforms.dir.value.set(x / from.width, y / from.height);
+      pass(blur, to);
+    }
+    return {
+      setSize: function (w, h) {
+        w = Math.max(2, w); h = Math.max(2, h);
+        full.setSize(w, h);
+        half.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
+        qa.setSize(Math.max(1, w >> 2), Math.max(1, h >> 2));
+        qb.setSize(Math.max(1, w >> 2), Math.max(1, h >> 2));
+      },
+      render: function (scene, camera) {
+        renderer.setRenderTarget(full);
+        renderer.render(scene, camera);
+        pass(bright, half);
+        blurPass(half, qa, 1, 0);
+        blurPass(qa, qb, 0, 1);
+        blurPass(qb, qa, 2, 0);
+        blurPass(qa, qb, 0, 2);
+        pass(final, null);
+      }
+    };
+  }
+
+  // A soft round dot, for dust and spray.
+  function dotTexture() {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const g = c.getContext("2d");
+    const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grd.addColorStop(0, "rgba(255, 255, 255, 1)");
+    grd.addColorStop(0.45, "rgba(255, 255, 255, 0.55)");
+    grd.addColorStop(1, "rgba(255, 255, 255, 0)");
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 64, 64);
+    return new T.CanvasTexture(c);
+  }
+
+  return { glass: glass, rod: rod, gear: gear, coneGear: coneGear, ringGear: ringGear, along: along, collarMesh: collarMesh, bevel: bevel,
+    studio: studio, glow: glow, dotTexture: dotTexture };
 })();
