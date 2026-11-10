@@ -816,81 +816,226 @@ window.SYS_DIAGRAM = (function () {
   }
 
   // ---------------------------------------------------------------- ground
+  // Each kind of ground is two pictures drawn here: its colours, and a grey
+  // height map that gives it relief under the light (stones stand proud,
+  // cracks and tyre tracks sit low). Everything is drawn again a tile up and
+  // down so it joins up as the ground scrolls. The wheel runs at 0.4 of the
+  // tile's width (the tiles on the other side mirror the picture), so the
+  // tyre tracks sit under the tyres; the lane dashes are at the outer edge.
+  const TW = 512, TH = 1024, TRACK = 0.396 * TW;
   function texture(kind) {
-    const c = document.createElement("canvas");
-    c.width = 256; c.height = 512;
-    const g = c.getContext("2d");
-    const rnd = (() => { let s = kind === "tar" ? 7 : 13; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+    const mk = () => { const c = document.createElement("canvas"); c.width = TW; c.height = TH; return c; };
+    const cc = mk(), cb = mk(), g = cc.getContext("2d"), h = cb.getContext("2d");
+    let seed = { tar: 7, mud: 13, ice: 29, air: 3 }[kind];
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const grey = (v, a) => "rgba(" + (v | 0) + "," + (v | 0) + "," + (v | 0) + "," + a + ")";
+    // an ellipse on one canvas, wrapped top and bottom
+    const blob = (ctx, x, y, rx, ry, rot, fill) => {
+      ctx.fillStyle = fill;
+      [0, -TH, TH].forEach((dy) => {
+        if (y + dy < -rx - ry || y + dy > TH + rx + ry) return;
+        ctx.beginPath(); ctx.ellipse(x, y + dy, rx, ry, rot, 0, Math.PI * 2); ctx.fill();
+      });
+    };
+    // a wandering crack on both canvases
+    const crack = (colour, width, low, steps, reach) => {
+      const pts = [[rnd() * TW, rnd() * TH]];
+      for (let k = 0; k < steps; k++) pts.push([pts[k][0] + (rnd() - 0.5) * reach, pts[k][1] + (rnd() - 0.5) * reach]);
+      [[g, colour, width], [h, low, width + 1.5]].forEach(([ctx, col, wd]) => {
+        ctx.strokeStyle = col; ctx.lineWidth = wd; ctx.lineJoin = "round";
+        [0, -TH, TH].forEach((dy) => {
+          ctx.beginPath();
+          pts.forEach(([x, y], k) => (k ? ctx.lineTo(x, y + dy) : ctx.moveTo(x, y + dy)));
+          ctx.stroke();
+        });
+      });
+    };
+    // a soft band along the tile where the tyre runs
+    const band = (ctx, half, colour) => {
+      const grd = ctx.createLinearGradient(TRACK - half, 0, TRACK + half, 0);
+      grd.addColorStop(0, "rgba(0,0,0,0)"); grd.addColorStop(0.3, colour); grd.addColorStop(0.7, colour); grd.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grd; ctx.fillRect(TRACK - half, 0, half * 2, TH);
+    };
+    h.fillStyle = "#808080"; h.fillRect(0, 0, TW, TH);
+
     if (kind === "tar") {
-      g.fillStyle = "#2a2f3b"; g.fillRect(0, 0, 256, 512);
-      for (let i = 0; i < 2600; i++) { g.fillStyle = "rgba(" + (120 + rnd() * 80 | 0) + "," + (125 + rnd() * 80 | 0) + "," + (140 + rnd() * 80 | 0) + "," + (0.15 + rnd() * 0.3) + ")"; g.fillRect(rnd() * 256, rnd() * 512, 1.6, 1.6); }
-      g.fillStyle = "rgba(240, 236, 220, 0.75)";
-      for (let y = 0; y < 512; y += 128) g.fillRect(20, y + 20, 8, 70);
-    } else if (kind === "mud") {
-      // low traction: brown dirt, loose stones, a few darker wet patches
-      g.fillStyle = "#5a3f26"; g.fillRect(0, 0, 256, 512);
-      for (let i = 0; i < 900; i++) {
-        const k = rnd();
-        g.fillStyle = "rgba(" + (95 + k * 50 | 0) + "," + (68 + k * 34 | 0) + "," + (40 + k * 22 | 0) + "," + (0.35 + rnd() * 0.4) + ")";
-        g.fillRect(rnd() * 256, rnd() * 512, 2, 2);
+      g.fillStyle = "#2b2f38"; g.fillRect(0, 0, TW, TH);
+      for (let i = 0; i < 46; i++) blob(g, rnd() * TW, rnd() * TH, 40 + rnd() * 90, 30 + rnd() * 60, rnd() * 3, i % 2 ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.10)");
+      band(g, 62, "rgba(0, 0, 0, 0.2)"); // worn darker where the wheels run
+      for (let i = 0; i < 15000; i++) { // the stone in the tar
+        const x = rnd() * TW, y = rnd() * TH, r = 0.5 + rnd() * rnd() * 2.4, v = 70 + rnd() * 110;
+        blob(g, x, y, r, r * (0.6 + rnd() * 0.4), rnd() * 3, "rgba(" + (v | 0) + "," + (v + 4 | 0) + "," + (v + 14 | 0) + "," + (0.2 + rnd() * 0.5) + ")");
+        if (r > 0.9) blob(h, x, y, r, r, 0, grey(150 + rnd() * 70, 0.7));
       }
-      g.fillStyle = "rgba(25, 15, 6, 0.35)";
-      for (let i = 0; i < 14; i++) { g.beginPath(); g.ellipse(rnd() * 256, rnd() * 512, 16 + rnd() * 26, 8 + rnd() * 12, rnd() * 3, 0, Math.PI * 2); g.fill(); }
-      for (let i = 0; i < 160; i++) { // stones, lit from the top left
-        const x = rnd() * 256, y = rnd() * 512, rx = 2 + rnd() * 7, ry = rx * (0.6 + rnd() * 0.4), sh = 110 + rnd() * 50 | 0;
-        g.fillStyle = "rgba(20, 12, 6, 0.5)";
-        g.beginPath(); g.ellipse(x + 1.5, y + 1.5, rx, ry, 0, 0, Math.PI * 2); g.fill();
-        g.fillStyle = "rgb(" + sh + "," + (sh * 0.88 | 0) + "," + (sh * 0.74 | 0) + ")";
-        g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill();
-        g.fillStyle = "rgba(255, 245, 225, 0.25)";
-        g.beginPath(); g.ellipse(x - rx * 0.3, y - ry * 0.3, rx * 0.4, ry * 0.35, 0, 0, Math.PI * 2); g.fill();
+      for (let i = 0; i < 9; i++) crack("rgba(8, 9, 12, 0.75)", 1 + rnd() * 1.4, "#3a3a3a", 7, 110);
+      // worn lane dashes along the outer edge
+      for (let y = 40; y < TH; y += 256) {
+        g.fillStyle = "rgba(236, 232, 214, 0.86)"; g.fillRect(452, y, 15, 150);
+        h.fillStyle = grey(150, 0.8); h.fillRect(452, y, 15, 150);
+        for (let i = 0; i < 260; i++) { g.fillStyle = "rgba(43, 47, 56, " + (0.3 + rnd() * 0.6) + ")"; g.fillRect(450 + rnd() * 19, y + rnd() * 150, 1 + rnd() * 3, 1 + rnd() * 4); }
+      }
+    } else if (kind === "mud") {
+      // low traction: dirt with dry and wet patches, loose stones, a tyre track
+      g.fillStyle = "#5c4129"; g.fillRect(0, 0, TW, TH);
+      for (let i = 0; i < 70; i++) {
+        const k = rnd();
+        blob(g, rnd() * TW, rnd() * TH, 30 + rnd() * 90, 20 + rnd() * 50, rnd() * 3, k < 0.5 ? "rgba(128, 96, 60, 0.20)" : "rgba(38, 24, 12, 0.22)");
+      }
+      for (let i = 0; i < 16; i++) { // wet patches
+        const x = rnd() * TW, y = rnd() * TH, rx = 26 + rnd() * 50, ry = 14 + rnd() * 26, rot = rnd() * 3;
+        blob(g, x, y, rx, ry, rot, "rgba(22, 13, 6, 0.42)");
+        blob(h, x, y, rx, ry, rot, grey(92, 0.6));
+      }
+      for (let i = 0; i < 11000; i++) { // grain
+        const k = rnd(), x = rnd() * TW, y = rnd() * TH, r = 0.6 + rnd() * 1.4;
+        blob(g, x, y, r, r, 0, "rgba(" + (88 + k * 70 | 0) + "," + (62 + k * 50 | 0) + "," + (36 + k * 34 | 0) + "," + (0.3 + rnd() * 0.45) + ")");
+        if (i % 3 === 0) blob(h, x, y, r, r, 0, grey(k < 0.5 ? 100 : 160, 0.5));
+      }
+      // the tyre's track: pressed down, with the tread's chevrons in it
+      band(g, 46, "rgba(30, 18, 8, 0.42)");
+      band(h, 46, grey(84, 0.75));
+      for (let y = 0; y < TH; y += 32) {
+        [[-1, 0], [1, 16]].forEach(([side, dy]) => {
+          [[g, "rgba(18, 10, 4, 0.5)"], [h, grey(40, 0.8)]].forEach(([ctx, col]) => {
+            ctx.save(); ctx.translate(TRACK + side * 14, y + dy + 8); ctx.rotate(side * 0.5);
+            ctx.fillStyle = col; ctx.fillRect(-11, -4, 22, 8); ctx.restore();
+          });
+        });
+      }
+      for (let i = 0; i < 420; i++) { // stones, lit from the top left
+        const x = rnd() * TW, y = rnd() * TH, rx = 3 + rnd() * rnd() * 15, ry = rx * (0.6 + rnd() * 0.4), rot = rnd() * 3, sh = 105 + rnd() * 60;
+        blob(g, x + 2.5, y + 2.5, rx, ry, rot, "rgba(18, 10, 5, 0.5)");
+        blob(g, x, y, rx, ry, rot, "rgb(" + (sh | 0) + "," + (sh * 0.9 | 0) + "," + (sh * 0.77 | 0) + ")");
+        blob(g, x - rx * 0.28, y - ry * 0.28, rx * 0.45, ry * 0.4, rot, "rgba(255, 246, 228, 0.22)");
+        blob(h, x, y, rx, ry, rot, grey(196, 0.9));
+        blob(h, x, y, rx * 0.55, ry * 0.55, rot, grey(240, 0.9));
       }
     } else if (kind === "ice") {
-      // very low traction: pale blue ice, frosty patches, cracks
-      const grd = g.createLinearGradient(0, 0, 256, 512);
-      grd.addColorStop(0, "#cfe6f5"); grd.addColorStop(0.5, "#a9cde6"); grd.addColorStop(1, "#c4dff0");
-      g.fillStyle = grd; g.fillRect(0, 0, 256, 512);
-      for (let i = 0; i < 30; i++) {
-        g.fillStyle = "rgba(255, 255, 255, " + (0.15 + rnd() * 0.3) + ")";
-        g.beginPath(); g.ellipse(rnd() * 256, rnd() * 512, 10 + rnd() * 30, 4 + rnd() * 12, rnd() * 3, 0, Math.PI * 2); g.fill();
+      // very low traction: pale blue ice, frost, cracks, the tyre's scrape marks
+      const grd = g.createLinearGradient(0, 0, TW, TH);
+      grd.addColorStop(0, "#b4cfe0"); grd.addColorStop(0.5, "#93b8d2"); grd.addColorStop(1, "#a8c6da");
+      g.fillStyle = grd; g.fillRect(0, 0, TW, TH);
+      for (let i = 0; i < 40; i++) blob(g, rnd() * TW, rnd() * TH, 30 + rnd() * 80, 16 + rnd() * 40, rnd() * 3, "rgba(60, 120, 170, 0.10)"); // deeper, clearer ice
+      for (let i = 0; i < 90; i++) { // frost and blown snow
+        const x = rnd() * TW, y = rnd() * TH, rx = 10 + rnd() * 34, ry = 5 + rnd() * 14, rot = rnd() * 3;
+        blob(g, x, y, rx, ry, rot, "rgba(255, 255, 255, " + (0.06 + rnd() * 0.14) + ")");
+        blob(h, x, y, rx, ry, rot, grey(165, 0.5));
       }
-      for (let i = 0; i < 22; i++) {
-        let x = rnd() * 256, y = rnd() * 512;
-        g.strokeStyle = i % 3 ? "rgba(255, 255, 255, 0.7)" : "rgba(70, 110, 140, 0.45)";
-        g.lineWidth = 0.8 + rnd();
-        g.beginPath(); g.moveTo(x, y);
-        for (let k = 0; k < 5; k++) { x += (rnd() - 0.5) * 50; y += (rnd() - 0.5) * 50; g.lineTo(x, y); }
-        g.stroke();
+      for (let i = 0; i < 34; i++) crack(i % 3 ? "rgba(255, 255, 255, 0.75)" : "rgba(60, 105, 140, 0.5)", 0.8 + rnd() * 1.6, "#4a4a4a", 6, 120);
+      for (let i = 0; i < 26; i++) { // scrapes where the tyre has slid
+        const x = TRACK + (rnd() - 0.5) * 56, y = rnd() * TH, len = 40 + rnd() * 120;
+        g.fillStyle = "rgba(255, 255, 255, 0.35)";
+        [0, -TH, TH].forEach((dy) => g.fillRect(x, y + dy, 1.5, len));
       }
     } else {
-      g.fillStyle = "#03050c"; g.fillRect(0, 0, 256, 512);
-      g.strokeStyle = "rgba(76, 201, 255, 0.35)"; g.lineWidth = 2;
-      for (let x = 0; x <= 256; x += 32) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 512); g.stroke(); }
-      for (let y = 0; y <= 512; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(256, y); g.stroke(); }
+      g.fillStyle = "#03050c"; g.fillRect(0, 0, TW, TH);
+      g.strokeStyle = "rgba(76, 201, 255, 0.35)"; g.lineWidth = 3;
+      for (let x = 0; x <= TW; x += 64) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, TH); g.stroke(); }
+      for (let y = 0; y <= TH; y += 64) { g.beginPath(); g.moveTo(0, y); g.lineTo(TW, y); g.stroke(); }
     }
+    const map = new T.CanvasTexture(cc);
+    map.encoding = T.sRGBEncoding;
+    const bump = new T.CanvasTexture(normalsFrom(cb));
+    [map, bump].forEach((t) => { t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = 8; });
+    return { map: map, bump: bump };
+  }
+
+  // A normal map from a height picture (three's own bump mapping striped on
+  // fine detail): the slope at each point, from its neighbours, wrapping top
+  // to bottom like the picture does.
+  function normalsFrom(heights) {
+    const w = heights.width, hgt = heights.height;
+    const soft = document.createElement("canvas");
+    soft.width = w; soft.height = hgt;
+    const sg = soft.getContext("2d");
+    if ("filter" in sg) sg.filter = "blur(1px)";
+    sg.drawImage(heights, 0, 0);
+    const src = sg.getImageData(0, 0, w, hgt).data;
+    const out = sg.createImageData(w, hgt);
+    const at = (x, y) => src[(((y + hgt) % hgt) * w + Math.min(w - 1, Math.max(0, x))) * 4];
+    for (let y = 0; y < hgt; y++) {
+      for (let x = 0; x < w; x++) {
+        const dx = (at(x + 1, y) - at(x - 1, y)) / 255, dy = (at(x, y + 1) - at(x, y - 1)) / 255;
+        const nx = -dx * 3, ny = dy * 3, len = Math.sqrt(nx * nx + ny * ny + 1);
+        const i = (y * w + x) * 4;
+        out.data[i] = (nx / len * 0.5 + 0.5) * 255;
+        out.data[i + 1] = (ny / len * 0.5 + 0.5) * 255;
+        out.data[i + 2] = (1 / len * 0.5 + 0.5) * 255;
+        out.data[i + 3] = 255;
+      }
+    }
+    sg.filter = "none";
+    sg.putImageData(out, 0, 0);
+    return soft;
+  }
+
+  // The cut side of the slab of ground under a tile: layers, in grey, tinted
+  // per kind (asphalt, soil, ice).
+  function strataTexture() {
+    const c = document.createElement("canvas");
+    c.width = 256; c.height = 64;
+    const g = c.getContext("2d");
+    let seed = 41;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const grd = g.createLinearGradient(0, 0, 0, 64);
+    grd.addColorStop(0, "#f4f4f4"); grd.addColorStop(0.12, "#b8b8b8"); grd.addColorStop(0.5, "#8c8c8c"); grd.addColorStop(1, "#3a3a3a");
+    g.fillStyle = grd; g.fillRect(0, 0, 256, 64);
+    for (let i = 0; i < 9; i++) { g.fillStyle = "rgba(0, 0, 0, " + (0.06 + rnd() * 0.12) + ")"; g.fillRect(0, 6 + rnd() * 54, 256, 1 + rnd() * 3); }
+    for (let i = 0; i < 500; i++) { g.fillStyle = rnd() < 0.5 ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.2)"; g.fillRect(rnd() * 256, 4 + rnd() * 60, 1 + rnd() * 3, 1 + rnd() * 2); }
     const t = new T.CanvasTexture(c);
     t.encoding = T.sRGBEncoding;
-    t.wrapS = t.wrapT = T.RepeatWrapping;
-    t.anisotropy = 4;
+    t.wrapS = T.RepeatWrapping;
+    t.repeat.x = 2;
     return t;
   }
 
+  // Loose rocks: three lumpy stones, each an icosahedron with its corners
+  // pushed in and out (the same corner always by the same amount, so no gaps).
+  function rockGeometry(k) {
+    const geo = new T.IcosahedronGeometry(1, 1);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      const n = Math.sin(Math.round(x * 50) * 12.9898 + Math.round(y * 50) * 78.233 + Math.round(z * 50) * 37.719 + k * 9.1) * 43758.5453;
+      const f = 0.74 + 0.4 * (n - Math.floor(n));
+      pos.setXYZ(i, x * f, y * f, z * f);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  const SLAB = 0.57;       // how thick the slab of ground is; a wheel "in the air" has a hole through it
+  const SLAB_TINT = { tar: 0x4a4e58, mud: 0x7a5534, ice: 0xa9d2ec };
+  const GROUND = {
+    tar: { roughness: 0.88, metalness: 0, bump: 0.7 },
+    mud: { roughness: 0.82, metalness: 0, bump: 1.3 },
+    ice: { roughness: 0.32, metalness: 0, bump: 0.4 },
+    air: { roughness: 0.9, metalness: 0, bump: 0 }
+  };
   const TEX = {};
-  const rockGeo = new T.DodecahedronGeometry(1, 0);
+  const rockGeos = [0, 1, 2].map(rockGeometry);
   const rockMats = [0x7a6550, 0x6a5848, 0x8a7a66].map((c) => new T.MeshStandardMaterial({ color: c, roughness: 0.95, flatShading: true }));
   let seed01 = 3;
   const rnd01 = () => (seed01 = (seed01 * 16807) % 2147483647) / 2147483647;
   function buildGround() {
     ["tar", "mud", "ice", "air"].forEach((k) => { TEX[k] = texture(k); });
+    const strata = strataTexture();
+    const hiddenMat = new T.MeshBasicMaterial({ visible: false });
     C.WHEELS.forEach((w) => {
       const [x, z] = WHEEL_POS[w];
-      const mat = new T.MeshStandardMaterial({ map: TEX.tar, roughness: 0.9, metalness: 0.0 });
+      const mat = new T.MeshStandardMaterial({ roughness: 0.9, metalness: 0.0 });
       const tile = new T.Mesh(new T.PlaneGeometry(2.4, 3.0), mat);
       tile.rotation.x = -Math.PI / 2;
       tile.position.set(x < 0 ? -1.2 : 1.2, 0, z < 0 ? -1.5 : 1.5);
       tile.receiveShadow = true;
       tile.userData.wheel = w;
       world.add(tile);
+      // the slab under the tile, so the ground is a block with cut sides
+      const slabMat = new T.MeshStandardMaterial({ map: strata, roughness: 0.95, envMapIntensity: 0.3 });
+      // sides only: a top face would lie in the tile's own plane and flicker through it
+      const slab = new T.Mesh(new T.BoxGeometry(2.4, SLAB, 3.0), [slabMat, slabMat, hiddenMat, hiddenMat, slabMat, slabMat]);
+      slab.position.set(tile.position.x, -SLAB / 2, tile.position.z);
+      world.add(slab);
       // the edge of the tile, lit when hovered
       const edge = new T.LineSegments(new T.EdgesGeometry(new T.PlaneGeometry(2.38, 2.98)),
         new T.LineBasicMaterial({ color: 0x4cc9ff, transparent: true, opacity: 0.0 }));
@@ -899,12 +1044,12 @@ window.SYS_DIAGRAM = (function () {
       world.add(edge);
       // loose rocks, shown on low traction, rolling back under the vehicle
       const rocks = new T.Group();
-      for (let i = 0; i < 26; i++) {
-        const m = new T.Mesh(rockGeo, rockMats[i % rockMats.length]);
+      for (let i = 0; i < 30; i++) {
+        const m = new T.Mesh(rockGeos[i % rockGeos.length], rockMats[i % rockMats.length]);
         const sz = 0.03 + rnd01() * 0.06;
-        m.scale.set(sz * (0.8 + rnd01() * 0.5), sz * 0.6, sz * (0.8 + rnd01() * 0.6));
+        m.scale.set(sz * (0.8 + rnd01() * 0.5), sz * 0.62, sz * (0.8 + rnd01() * 0.6));
         m.rotation.set(rnd01() * 3, rnd01() * 3, rnd01() * 3);
-        m.position.set(tile.position.x + (rnd01() - 0.5) * 2.2, sz * 0.25, 0);
+        m.position.set(tile.position.x + (rnd01() - 0.5) * 2.2, sz * 0.3, 0);
         m.userData.z0 = rnd01() * 3;
         m.castShadow = true;
         m.receiveShadow = true;
@@ -912,11 +1057,12 @@ window.SYS_DIAGRAM = (function () {
       }
       rocks.visible = false;
       world.add(rocks);
-      tiles[w] = { mesh: tile, mat: mat, edge: edge, kind: "tar", rocks: rocks, z0: tile.position.z - 1.5 };
+      tiles[w] = { mesh: tile, mat: mat, slab: slab, edge: edge, kind: null, rocks: rocks, z0: tile.position.z - 1.5, flip: x < 0 };
+      setTile(w, "tar");
     });
-    // a faint floor beyond the tiles
+    // the floor the slab stands on
     const grid = new T.GridHelper(14, 28, 0x1d3b6b, 0x0f2142);
-    grid.position.y = -0.01;
+    grid.position.y = -SLAB - 0.01;
     world.add(grid);
   }
 
@@ -924,15 +1070,22 @@ window.SYS_DIAGRAM = (function () {
     const t = tiles[w];
     if (t.kind === kind) return;
     t.kind = kind;
-    t.mat.map = TEX[kind].clone();
+    const look = GROUND[kind];
+    t.mat.map = TEX[kind].map.clone();
+    if (t.flip) { t.mat.map.repeat.x = -1; t.mat.map.offset.x = 1; } // mirrored, so the tyre track is under this side's tyre too
     t.mat.map.needsUpdate = true;
-    t.mat.roughness = kind === "ice" ? 0.12 : kind === "mud" ? 0.55 : 0.9; // ice is glossy
-    t.mat.metalness = kind === "ice" ? 0.15 : 0;
+    t.mat.normalMap = look.bump ? TEX[kind].bump : null; // it follows the map's scrolling and mirroring
+    t.mat.normalScale.set(t.flip ? -look.bump : look.bump, look.bump);
+    t.mat.color.setHex(kind === "ice" ? 0xb4bcc8 : 0xffffff); // pale ice burnt out to white in the light
+    t.mat.roughness = look.roughness; // ice is glossy
+    t.mat.metalness = look.metalness;
     t.mat.envMapIntensity = kind === "ice" ? 0.15 : 0.5; // glossy ice mustn't mirror the studio lights to white
     t.mat.emissive = new T.Color(kind === "air" ? 0x0a2a55 : 0x000000);
     t.mat.emissiveIntensity = kind === "air" ? 0.4 : 0;
-    // a wheel in the air: the tile drops away into a pit, so the tyre hangs free
-    t.mesh.position.y = kind === "air" ? -0.55 : 0;
+    // a wheel in the air: a hole through the slab, down to the floor, so the tyre hangs free
+    t.mesh.position.y = kind === "air" ? -SLAB + 0.02 : 0;
+    t.slab.visible = kind !== "air";
+    if (kind !== "air") t.slab.material[0].color.setHex(SLAB_TINT[kind]);
     t.rocks.visible = kind === "mud";
     t.mat.needsUpdate = true;
   }
